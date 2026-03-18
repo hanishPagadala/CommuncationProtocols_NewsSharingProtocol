@@ -7,7 +7,7 @@ import threading
 udpHOST = "0.0.0.0"
 PORTNo = 8889
 
-udpServerHost = 'localhost'
+udpServerHost = '132.205.94.193'
 udpServerPort = 8888
 
 # try:
@@ -19,7 +19,7 @@ udpServerPort = 8888
 Request = 0
 Name = "Lebron"
 clientIP = socket.gethostbyname(socket.gethostname())
-server_address = ('localhost', 10000)
+server_address = ('132.205.94.193', 10000)
 #server_address = ('132.205.46.76', 10000)
 
 def sendMessage(message):
@@ -66,7 +66,7 @@ try:
     while True:
         time.sleep(0.1) 
         message = ""
-        userAction = input("Choose an Action: Register | Unregister | Update | Subjects | Publish | Quit: ")
+        userAction = input("Choose an Action: Register | Unregister | Update | Subjects | Publish | Comment | Quit: ")
         userAction = userAction.lower()
         messageType = ""
         if (userAction == "register"):
@@ -93,6 +93,15 @@ try:
             userName = input("Enter your name: ")
             listOfSubjects = input("Enter the subjects you want to subscribe to (space separated): ")
             message = "Subjects " + str(Request) + " " + userName + " " + listOfSubjects
+            messageType = "TCP"
+
+        elif userAction == "comment":
+
+            userName = input("Enter your name: ")
+            listOfSubjects = input("Enter the subject you wish to publish: ")
+            subjectTitle = input("Enter the title of your publication: ")
+            subjectText = input("Enter your comment: ")
+            message = "Subjects " + str(Request) + " " + userName + " " + listOfSubjects + " " + subjectTitle + " " + subjectText
             messageType = "TCP"
 
         elif userAction == "quit":

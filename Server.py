@@ -29,6 +29,7 @@ processingCommands = []
 UDPClients = {}
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
+UDPClients = {}
 
 with open(CSV_FILE, mode='r', newline='') as fille:
     reader = csv.reader(fille)
@@ -144,7 +145,7 @@ def getDatafromClient(connection, client_address):
                         response += item + " "
 
                 message = "SUBJECTS UPDATED " + response
-                
+
                 
             elif command == "Quit":
                 break
@@ -237,14 +238,19 @@ sock.bind(server_address)
 # Server starts listening on the port
 sock.listen(5)
 
-# Start the UDP listener once, as a daemon so it doesn't block shutdown
-udpThread = threading.Thread(target=getUDPDataFromClient, daemon=True)
-udpThread.start()
+udpConnectionThread = threading.Thread(target=getUDPDataFromClient)
+udpConnectionThread.daemon = True
+udpConnectionThread.start()
 
 print('Server Running', file=sys.stderr, flush=True)
 while True:
     # Wait for a connection
     connection, client_address = sock.accept()
-    handleClientThread = threading.Thread(target=getDatafromClient, args=(connection, client_address,))
+
+    handleClientThread = threading.Thread(
+        target=getDatafromClient,
+        args=(connection, client_address,)
+    )
+
+    handleClientThread.daemon = True
     handleClientThread.start()
-    clientThreads.append(handleClientThread)
