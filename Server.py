@@ -2,10 +2,9 @@ import os
 import socket
 import threading
 import sys
-import time
 import csv #hello
 
-HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers
+HOST = '0.0.0.0' #change to '0.0.0.0' when testing on lab computers or localhost
 PORT = 10000
 
 UDPHOST = "0.0.0.0"
@@ -27,8 +26,18 @@ udpThread = None
 RegisteredClients = []
 clientSubjects = []
 processingCommands = []
+UDPClients = {}
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
+
+with open(CSV_FILE, mode='r', newline='') as fille:
+    reader = csv.reader(fille)
+    for row in reader:
+        RegisteredClients.append(tuple(row))
+
+with open(CSV_FILE, mode='w', newline='') as theFile:
+    writer = csv.writer(theFile)
+    writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
 
 def writeToCSV():
     with open(CSV_FILE, mode='w', newline='') as file:
@@ -36,7 +45,6 @@ def writeToCSV():
         writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
         for client in RegisteredClients:
             writer.writerow([client[0], client[1], client[2]])
-    print("Client information written to registeredClient.csv")
 
 def updateUserCommands():
     with open(processingCSV_FILE, mode='w', newline='') as file:
@@ -56,10 +64,9 @@ def getDatafromClient(connection, client_address):
     try:
         while True:
             data = connection.recv(4096)
-            print(f'received {data}', file=sys.stderr)
-            
+            if not data == "b''":
+                print(f'received {data}', file=sys.stderr)
             if not data:
-                print('no more data from', client_address, file=sys.stderr)
                 break
 
             request = data.decode().strip()
@@ -100,7 +107,7 @@ def getDatafromClient(connection, client_address):
                     message = "UNREGISTERED " + parts[1]
                     client_name = str(parts[2]).lower()
                     for client in RegisteredClients:
-                        if client[0] == client_name or client[1] == str(client_address[0]):
+                        if client[0] == client_name and client[1] == str(client_address[0]):
                             RegisteredClients.remove(client)
                             writeToCSV()
                             break
@@ -120,7 +127,7 @@ def getDatafromClient(connection, client_address):
                             RegisteredClients.remove(client)
                             RegisteredClients.append((client_name, str(client_address[0]), str(parts[3])))
 
-                            message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + client_address[0]
+                            message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + client_address[0] + " " + parts[3]
                             writeToCSV()
                             break
                         else:
@@ -136,8 +143,6 @@ def getDatafromClient(connection, client_address):
                         clientSubjects.append(item)
                         response += item + " "
 
-                print(clientSubjects)
-
                 message = "SUBJECTS UPDATED " + response
                 
                 
@@ -152,19 +157,77 @@ def getDatafromClient(connection, client_address):
 
     finally:
         connection.close()
-    
+
+
 def getUDPDataFromClient():
-    try:
-        while True:
-            data = udpSock.recvfrom(4096)
-            message = data[0].decode()
-            addr = data[1]
-            print(f"Received {message} from {addr}")
-            
-            udpSock.sendto(message.encode(), addr)
-    finally:
-        time.sleep(0.2)
-        udpSock.close()
+    while True:
+        data, addr = udpSock.recvfrom(4096)
+        message = data.decode()
+        parts = message.split()
+        command = parts[0]
+
+        # publish function
+        if command == "Publish":
+            rq = parts[1]
+            name = parts[2]
+            subject = parts[3]
+            title = parts[4]
+            text = " ".join(parts[5:])
+
+            print(f"Publish received from {name}")
+
+            if name not in RegisteredClients:
+                udpSock.sendto(
+                    f"PUBLISH-DENIED {rq} UserNotRegistered".encode(),
+                    addr
+                )
+                continue
+
+            UDPClients[name] = addr
+
+            if subject not in clientSubjects.get(name, []):
+                udpSock.sendto(
+                    f"PUBLISH-DENIED {rq} InvalidSubject".encode(),
+                    addr
+                )
+                continue
+
+            for user in clientSubjects:
+                if subject in clientSubjects[user] and user != name:
+                    if user in RegisteredClients:
+                        user_addr = UDPClients[user]
+                        messageToSend = f"MESSAGE {name} {subject} {title} {text}"
+                        udpSock.sendto(messageToSend.encode(), user_addr)
+                        print(f"Forwarding message to {user}")
+            udpSock.sendto(
+                f"PUBLISH-OK {rq}".encode(),
+                addr
+            )
+
+        # publish comment function
+        elif command == "PUBLISH-COMMENT":
+            name = parts[1]
+            subject = parts[2]
+            title = parts[3]
+            text = " ".join(parts[4:])
+
+            print(f"Comment received from {name} on {subject}")
+
+            for user in clientSubjects:
+                if subject in clientSubjects[user]:
+                    if user in RegisteredClients:
+                        user_addr = UDPClients[user]
+                        messageToSend = f"COMMENT {name} {subject} {title} {text}"
+                        udpSock.sendto(messageToSend.encode(), user_addr)
+                        print(f"Forwarding comment to {user}")
+
+        elif command == "HELLO":
+
+            name = parts[1]
+
+            UDPClients[name] = addr
+
+            print(f"UDP address registered for {name}: {addr}")
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = (HOST, PORT)
@@ -178,10 +241,9 @@ sock.listen(5)
 udpThread = threading.Thread(target=getUDPDataFromClient, daemon=True)
 udpThread.start()
 
+print('Server Running', file=sys.stderr, flush=True)
 while True:
     # Wait for a connection
-    print('waiting for a connection', file=sys.stderr, flush=True)
-
     connection, client_address = sock.accept()
     handleClientThread = threading.Thread(target=getDatafromClient, args=(connection, client_address,))
     handleClientThread.start()

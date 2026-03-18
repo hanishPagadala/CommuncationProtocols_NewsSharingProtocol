@@ -10,11 +10,6 @@ PORTNo = 8889
 udpServerHost = 'localhost'
 udpServerPort = 8888
 
-try:
-    udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-except socket.error as msg:
-    print('Failed to create socket. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
-    sys.exit()
 # try:
 #     udpSock.bind((udpHOST, PORTNo))
 # except socket.error as msg:
@@ -40,21 +35,32 @@ def sendMessage(message):
     if data:
         recieved += data.decode()
         print("Received:", recieved)
+        reply = recieved.split()
+        if reply[0] == "UPDATE-CONFIRMED":
+            global PORTNo
+            PORTNo = int(reply[4])
+
 
     print("no more info to receive from the server at", server_address)
     sock.close()
     time.sleep(0.2)
 
-def sendUDPMessage(message):
-    udpSock.sendto(message.encode(), (udpServerHost, udpServerPort))
-    print("Sending Message to Server UDP")
+def sendUDPMessage(message, local_port):
+    #moved socket initialization from top of file to here
+    udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        udpSock.bind((udpHOST, local_port)) #binding to an assigned port
+        udpSock.sendto(message.encode(), (udpServerHost, udpServerPort))
+        print(f"Sending Message to Server UDP on port {local_port}")
 
-    data = udpSock.recvfrom(4096)
-    reply = data[0].decode()
-    addr = data[1]
+        data = udpSock.recvfrom(4096)
+        reply = data[0].decode()
+        addr = data[1]
 
-    print("Received:", reply, "from", addr)
-    time.sleep(0.2)
+        print("Received:", reply, "from", addr)    
+        time.sleep(0.2)
+    finally:
+        udpSock.close()
 
 try:
     while True:
@@ -112,7 +118,7 @@ try:
             tcpThread.start()
             tcpThread.join()
         elif messageType == "UDP":
-            udpThread = threading.Thread(target=sendUDPMessage, args=(message, )) 
+            udpThread = threading.Thread(target=sendUDPMessage, args=(message, PORTNo, )) 
             udpThread.start()
             udpThread.join()
     
@@ -121,4 +127,3 @@ try:
         Request += 1
 finally:
     time.sleep(0.5)
-    udpSock.close()
