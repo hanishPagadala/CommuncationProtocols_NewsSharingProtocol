@@ -3,6 +3,9 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+#csv file
+RegisteredClients.csv
+
 # C extensions
 *.so
 
