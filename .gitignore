@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 
 #csv file
-RegisteredClients.csv
+registeredClients.csv
 
 # C extensions
 *.so
