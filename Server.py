@@ -2,7 +2,7 @@ import socket
 import threading
 import sys
 import time
-import csv
+import csv #hello
 
 HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers
 PORT = 10000
