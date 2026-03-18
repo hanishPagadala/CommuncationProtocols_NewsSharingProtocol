@@ -4,7 +4,7 @@ import sys
 import time
 import csv
 
-HOST = 'localhost'
+HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers
 PORT = 10000
 
 UDPHOST = "0.0.0.0"
@@ -23,14 +23,14 @@ except socket.error as msg:
 
 clientThreads = []
 udpThread = None
-ResgisterdClients = []
+RegisteredClients = []
 clientSubjects = []
 
 def writeToCSV(userMessage):
     with open('../registeredClient.csv', mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
-        for client in ResgisterdClients:
+        for client in RegisteredClients:
             writer.writerow(client[0:3])
     print("Client information written to registeredClient.csv")
 
@@ -63,10 +63,10 @@ def getDatafromClient(connection, client_address):
                         message = f"REGISTER DENIED: RQ: {request_id} CLIENT NAME NOT PROVIDED"
                     else:
                         client_name = parts[2]
-                        if any(client[0] == client_name for client in ResgisterdClients):
+                        if any(client[0] == client_name for client in RegisteredClients):
                             message = f"REGISTER DENIED: RQ: {request_id} ALREADY REGISTERED"
                         else:
-                            ResgisterdClients.append((parts[2], parts[3], parts[4]))
+                            RegisteredClients.append((parts[2], parts[3], parts[4]))
                             message = f"REGISTERED {request_id}"
                             if len(parts) >= 5:
                                 writeToCSV(parts)
@@ -74,19 +74,19 @@ def getDatafromClient(connection, client_address):
                 connection.sendall(message.encode())
             elif command == "Unregister":
                 message = "UNREGISTERED " + request.split()[1]
-                for client in ResgisterdClients:
+                for client in RegisteredClients:
                     if client[0] == request.split()[2]:
-                        ResgisterdClients.remove(client)
+                        RegisteredClients.remove(client)
                         break
                 else:
                     message = "NOT REGISTERED"
                 connection.sendall(message.encode())
             elif command == "Update":
                 message = "UPDATE-CONFIRMED " + request.split()[1] + " " + request.split()[2] + " " + client_address[0]
-                for client in ResgisterdClients:
+                for client in RegisteredClients:
                     if client[0] == request.split()[2]:
-                        ResgisterdClients.remove(client)
-                        ResgisterdClients.append((request.split()[2], client_address))
+                        RegisteredClients.remove(client)
+                        RegisteredClients.append((request.split()[2], client_address))
                         break
                 else:
                     message = "UPDATE-DENIED " + request.split()[1] + " Name not registered"
