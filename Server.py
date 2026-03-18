@@ -30,6 +30,13 @@ processingCommands = []
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
 
+with open(CSV_FILE, mode='r', newline='') as file:
+    reader = csv.reader(file)
+    for row in reader:
+        RegisteredClients.append(tuple(row))
+
+print("Registered Clients loaded from CSV:", RegisteredClients)
+
 def writeToCSV():
     with open(CSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
