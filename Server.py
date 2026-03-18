@@ -86,7 +86,7 @@ def getDatafromClient(connection, client_address):
                     message = "UNREGISTERED " + parts[1]
                     client_name = str(parts[2]).lower()
                     for client in RegisteredClients:
-                        if client[0] == client_name and client[1] == client_address[0]:
+                        if client[0] == client_name or client[1] == str(client_address[0]):
                             RegisteredClients.remove(client)
                             writeToCSV()
                             break
