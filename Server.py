@@ -26,25 +26,38 @@ clientThreads = []
 udpThread = None
 RegisteredClients = []
 clientSubjects = []
+processingCommands = []
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
+processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
 
 def writeToCSV():
     with open(CSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
         for client in RegisteredClients:
-            writer.writerow(client[0:3])
+            writer.writerow([client[0], client[1], client[2]])
     print("Client information written to registeredClient.csv")
 
+def updateUserCommands():
+    with open(processingCSV_FILE, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        for command in processingCommands:
+            writer.writerow(command)
+    
 
+
+def checkUserRegistered(client_name, client_IP):
+    for client in RegisteredClients:
+        if client[0] == client_name and client[1] == str(client_IP):
+            return True
+    return False
 
 def getDatafromClient(connection, client_address):
-    print('connection from %s' % (client_address,), file=sys.stderr)
     try:
         while True:
             data = connection.recv(4096)
             print(f'received {data}', file=sys.stderr)
-
+            
             if not data:
                 print('no more data from', client_address, file=sys.stderr)
                 break
@@ -52,6 +65,9 @@ def getDatafromClient(connection, client_address):
             request = data.decode().strip()
             if not request:
                 continue
+            processingCommands.append(request)
+            message = ""
+            updateUserCommands()
 
             command = request.split()[0]
             if command == "Register":
@@ -70,14 +86,12 @@ def getDatafromClient(connection, client_address):
                             client_name = str(parts[2]).lower()
                             client_IP = str(parts[3])
                             client_UDP_Port = str(parts[4])
-                            if any((client[0] == client_name) or (client[1] == client_IP) for client in RegisteredClients):
+                            if any((client[0] == client_name) or (client[1] == str(client_IP)) for client in RegisteredClients):
                                 message = f"REGISTER DENIED: RQ: {request_id} ALREADY REGISTERED"
                             else:
                                 RegisteredClients.append((client_name, client_IP, client_UDP_Port))
                                 message = f"REGISTERED {request_id}"
                                 writeToCSV()
-                                    
-                connection.sendall(message.encode())
             elif command == "Unregister":
                 parts = request.split()
                 if len(parts) < 3:
@@ -92,7 +106,6 @@ def getDatafromClient(connection, client_address):
                             break
                     else:
                         message = "NOT REGISTERED"
-                connection.sendall(message.encode())
             elif command == "Update":
                 parts = request.split()
                 if len(parts) < 3:
@@ -101,17 +114,17 @@ def getDatafromClient(connection, client_address):
                     request_id = parts[1]
                     client_name_raw = parts[2]
                     client_name = str(client_name_raw).lower()
-                    message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + client_address[0]
+                    
                     for client in RegisteredClients:
-                        if client[0] == client_name and client[1] == client_address[0]:
+                        if (client[0] == client_name) or (client[1] == str(client_address[0])):
                             RegisteredClients.remove(client)
-                            RegisteredClients.append((client_name, client_address[0], client[2]))
+                            RegisteredClients.append((client_name, str(client_address[0]), str(parts[3])))
+
+                            message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + client_address[0]
                             writeToCSV()
                             break
-                    else:
-                        message = "UPDATE-DENIED " + request_id + " Name and IP not registered"
-                connection.sendall(message.encode())
-
+                        else:
+                            message = "UPDATE-DENIED " + request_id + " Name and IP not registered"
             elif command == "Subjects":
                 counter = 0
                 print(request)
@@ -127,14 +140,17 @@ def getDatafromClient(connection, client_address):
 
                 message = "SUBJECTS UPDATED " + response
                 
-                connection.sendall(message.encode())
+                
             elif command == "Quit":
                 break
             else:
                 message = "INVALID COMMAND"
-                connection.sendall(message.encode())
+
+            connection.sendall(message.encode())
+            processingCommands.remove(request)
+            updateUserCommands()
+
     finally:
-        print('closing connection to', client_address, file=sys.stderr, flush=True)
         connection.close()
     
 def getUDPDataFromClient():

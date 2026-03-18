@@ -76,8 +76,10 @@ try:
             messageType = "TCP"
 
         elif userAction == "update":
+
             userName = input("Enter your name: ")
-            message = "Update " + str(Request) + " " + userName
+            newPort = input("Enter your new UDP port: ")
+            message = "Update " + str(Request) + " " + userName + " " + newPort
             messageType = "TCP"
 
         elif userAction == "subjects":
