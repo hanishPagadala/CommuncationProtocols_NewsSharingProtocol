@@ -1,3 +1,4 @@
+import os
 import socket
 import threading
 import sys
@@ -25,9 +26,10 @@ clientThreads = []
 udpThread = None
 RegisteredClients = []
 clientSubjects = []
+CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 
-def writeToCSV(userMessage):
-    with open('../registeredClient.csv', mode='w', newline='') as file:
+def writeToCSV():
+    with open(CSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
         for client in RegisteredClients:
@@ -62,34 +64,52 @@ def getDatafromClient(connection, client_address):
                     if len(parts) < 3:
                         message = f"REGISTER DENIED: RQ: {request_id} CLIENT NAME NOT PROVIDED"
                     else:
-                        client_name = parts[2]
-                        if any(client[0] == client_name for client in RegisteredClients):
-                            message = f"REGISTER DENIED: RQ: {request_id} ALREADY REGISTERED"
+                        if len(parts) < 5:
+                            message = f"REGISTER DENIED: RQ: {request_id} IP ADDRESS NOT PROVIDED or PORT NOT PROVIDED"
                         else:
-                            RegisteredClients.append((parts[2], parts[3], parts[4]))
-                            message = f"REGISTERED {request_id}"
-                            if len(parts) >= 5:
-                                writeToCSV(parts)
-       
+                            client_name = str(parts[2]).lower()
+                            client_IP = str(parts[3])
+                            client_UDP_Port = str(parts[4])
+                            if any((client[0] == client_name) or (client[1] == client_IP) for client in RegisteredClients):
+                                message = f"REGISTER DENIED: RQ: {request_id} ALREADY REGISTERED"
+                            else:
+                                RegisteredClients.append((client_name, client_IP, client_UDP_Port))
+                                message = f"REGISTERED {request_id}"
+                                writeToCSV()
+                                    
                 connection.sendall(message.encode())
             elif command == "Unregister":
-                message = "UNREGISTERED " + request.split()[1]
-                for client in RegisteredClients:
-                    if client[0] == request.split()[2]:
-                        RegisteredClients.remove(client)
-                        break
+                parts = request.split()
+                if len(parts) < 3:
+                    message = "UNREGISTER-DENIED: INVALID REQUEST FORMAT"
                 else:
-                    message = "NOT REGISTERED"
+                    message = "UNREGISTERED " + parts[1]
+                    client_name = str(parts[2]).lower()
+                    for client in RegisteredClients:
+                        if client[0] == client_name and client[1] == client_address[0]:
+                            RegisteredClients.remove(client)
+                            writeToCSV()
+                            break
+                    else:
+                        message = "NOT REGISTERED"
                 connection.sendall(message.encode())
             elif command == "Update":
-                message = "UPDATE-CONFIRMED " + request.split()[1] + " " + request.split()[2] + " " + client_address[0]
-                for client in RegisteredClients:
-                    if client[0] == request.split()[2]:
-                        RegisteredClients.remove(client)
-                        RegisteredClients.append((request.split()[2], client_address))
-                        break
+                parts = request.split()
+                if len(parts) < 3:
+                    message = "UPDATE-DENIED: INVALID REQUEST FORMAT"
                 else:
-                    message = "UPDATE-DENIED " + request.split()[1] + " Name not registered"
+                    request_id = parts[1]
+                    client_name_raw = parts[2]
+                    client_name = str(client_name_raw).lower()
+                    message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + client_address[0]
+                    for client in RegisteredClients:
+                        if client[0] == client_name and client[1] == client_address[0]:
+                            RegisteredClients.remove(client)
+                            RegisteredClients.append((client_name, client_address[0], client[2]))
+                            writeToCSV()
+                            break
+                    else:
+                        message = "UPDATE-DENIED " + request_id + " Name and IP not registered"
                 connection.sendall(message.encode())
 
             elif command == "Subjects":

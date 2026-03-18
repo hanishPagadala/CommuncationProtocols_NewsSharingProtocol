@@ -25,6 +25,7 @@ Request = 0
 Name = "Lebron"
 clientIP = socket.gethostbyname(socket.gethostname())
 server_address = ('localhost', 10000)
+#server_address = ('132.205.46.76', 10000)
 
 def sendMessage(message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
