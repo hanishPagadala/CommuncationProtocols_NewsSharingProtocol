@@ -91,7 +91,7 @@ try:
         elif userAction == "subjects":
             
             userName = input("Enter your name: ")
-            listOfSubjects = input("Enter the subjects you want to subscribe to (space separated): ")
+            listOfSubjects = input("Enter the subjects you want to subscribe to (comma separated separated): ")
             message = "Subjects " + str(Request) + " " + userName + " " + listOfSubjects
             messageType = "TCP"
 

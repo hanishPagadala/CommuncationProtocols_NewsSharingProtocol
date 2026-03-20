@@ -113,7 +113,11 @@ def getDatafromClient(connection, client_address):
 
                             #Justin Testing
                             message = "UNREGISTERED " + parts[1]
-                            clientSubjects.remove([client_name])
+                            
+                            for subject in clientSubjects:
+                                if subject[0] == client_name:
+                                    clientSubjects.remove(subject)
+
                             print("clientSubjects", clientSubjects)
 
                             writeToCSV()
@@ -144,25 +148,36 @@ def getDatafromClient(connection, client_address):
                 print(request)
                 response = ''
                 parts = request.split()
+                listOfSubjects = " ".join(parts[3:])
+                splitSubjects = listOfSubjects.split(",") 
+                print(listOfSubjects)
                 client_name = str(parts[2]).lower()
 
                 print(client_address)
 
-                for item in parts[3:]:  # Skip command, request_id, and client_name; only process actual subjects
-                    print(item) 
-                    counter += 1
+                # for item in parts[3:]:  # Skip command, request_id, and client_name; only process actual subjects
+                #     print(item) 
+                #     counter += 1
                     
-                    #clientSubjects.append(item)
+                #     #clientSubjects.append(item)
 
-                    #Justin testing adding subjects to the clientSubjects list of lists
-                    for name in clientSubjects:
-                        if name[0] == client_name:
-                            if item not in name:
-                                name.append(item)
+                #     #Justin testing adding subjects to the clientSubjects list of lists
+                    
+                    
 
-                    #clientSubjects[client_address[0]].append(item)
-                    response += item + " "
+                #     #clientSubjects[client_address[0]].append(item)
+                #     response += item + " "
 
+                for name in clientSubjects:
+                    if name[0] == client_name:
+                        clientSubjects.remove(name)
+                        clientSubjects.append([client_name])
+
+                for name in clientSubjects:
+                    if name[0] == client_name:
+                        for item in splitSubjects:  # Skip command, request_id, and client_name; only process actual subjects
+                            name.append(item)
+                            response += item + " "
                 print(clientSubjects)
                 message = "SUBJECTS UPDATED " + response
 
