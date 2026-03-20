@@ -4,7 +4,7 @@ import threading
 import sys
 import csv #hello
 
-HOST = '0.0.0.0' #change to '0.0.0.0' when testing on lab computers or localhost
+HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
 PORT = 10000
 
 UDPHOST = "0.0.0.0"
@@ -137,13 +137,18 @@ def getDatafromClient(connection, client_address):
                 counter = 0
                 print(request)
                 response = ''
+                parts = request.split()
+                print(client_address)
+
                 for item in request.split():
                     print(item)
                     counter += 1
                     if counter > 3:
                         clientSubjects.append(item)
+                        #clientSubjects[client_address[0]].append(item)
                         response += item + " "
 
+                print(clientSubjects)
                 message = "SUBJECTS UPDATED " + response
 
                 
@@ -167,6 +172,7 @@ def getUDPDataFromClient():
         parts = message.split()
         command = parts[0]
 
+        message = ""
         # publish function
         if command == "Publish":
             rq = parts[1]
@@ -177,20 +183,16 @@ def getUDPDataFromClient():
 
             print(f"Publish received from {name}")
 
-            if name not in RegisteredClients:
-                udpSock.sendto(
-                    f"PUBLISH-DENIED {rq} UserNotRegistered".encode(),
-                    addr
-                )
+            if not any((client[0] == str(name).lower()) for client in RegisteredClients):
+                message = f"PUBLISH-DENIED {rq} UserNotRegistered "
+                udpSock.sendto(message.encode(), addr)
                 continue
 
             UDPClients[name] = addr
 
-            if subject not in clientSubjects.get(name, []):
-                udpSock.sendto(
-                    f"PUBLISH-DENIED {rq} InvalidSubject".encode(),
-                    addr
-                )
+            if not any(clientSubject == subject for clientSubject in clientSubjects):
+                message = f"PUBLISH-DENIED {rq} SubjectNotRegistered"
+                udpSock.sendto(message.encode(), addr)
                 continue
 
             for user in clientSubjects:
@@ -207,7 +209,7 @@ def getUDPDataFromClient():
 
         # publish comment function
         elif command == "PUBLISH-COMMENT":
-            name = parts[1]
+            name = str(parts[1]).lower()
             subject = parts[2]
             title = parts[3]
             text = " ".join(parts[4:])
