@@ -105,30 +105,21 @@ def getDatafromClient(connection, client_address):
                 if len(parts) < 3:
                     message = "UNREGISTER-DENIED: INVALID REQUEST FORMAT"
                 else:
-                    message = "UNREGISTERED " + parts[1]
                     client_name = str(parts[2]).lower()
-                    if any((client[0] == client_name) or (client[1] == str(client_address[0])) for client in RegisteredClients):
-                        
-                        RegisteredClients.remove(client)
+                    for client in RegisteredClients:
+                        print(client[0], client_name)
+                        if (client[0] == client_name):
+                            RegisteredClients.remove(client)
 
-                        #Justin Testing
-                        clientSubjects.remove([client_name])
-                        print("clientSubjects", clientSubjects)
+                            #Justin Testing
+                            message = "UNREGISTERED " + parts[1]
+                            clientSubjects.remove([client_name])
+                            print("clientSubjects", clientSubjects)
 
-                        writeToCSV()
-                        break
-                    # for client in RegisteredClients:
-                    #     if (client[0] == client_name) and (client[1] == str(client_address[0])):
-                    #         RegisteredClients.remove(client)
-
-                    #         #Justin Testing
-                    #         clientSubjects.remove([client_name])
-                    #         print("clientSubjects", clientSubjects)
-
-                    #         writeToCSV()
-                    #         break
-                    else:
-                        message = "NOT REGISTERED"
+                            writeToCSV()
+                            break
+                        else:
+                            message = "NOT REGISTERED"
             elif command == "Update":
                 parts = request.split()
                 if len(parts) < 3:
