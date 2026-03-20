@@ -7,7 +7,7 @@ import threading
 udpHOST = "0.0.0.0"
 PORTNo = 8889
 
-udpServerHost = '132.205.94.193'
+serverAddress = "localhost" #'132.205.94.193'
 udpServerPort = 8888
 
 # try:
@@ -19,7 +19,7 @@ udpServerPort = 8888
 Request = 0
 Name = "Lebron"
 clientIP = socket.gethostbyname(socket.gethostname())
-server_address = ('132.205.94.193', 10000)
+server_address = (serverAddress, 10000)
 #server_address = ('132.205.46.76', 10000)
 
 def sendMessage(message):
@@ -50,7 +50,7 @@ def sendUDPMessage(message, local_port):
     udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         udpSock.bind((udpHOST, local_port)) #binding to an assigned port
-        udpSock.sendto(message.encode(), (udpServerHost, udpServerPort))
+        udpSock.sendto(message.encode(), (serverAddress, udpServerPort))
         print(f"Sending Message to Server UDP on port {local_port}")
 
         data = udpSock.recvfrom(4096)
