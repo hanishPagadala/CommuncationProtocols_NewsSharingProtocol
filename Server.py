@@ -30,15 +30,11 @@ UDPClients = {}
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
 UDPClients = {}
+        
 
-with open(CSV_FILE, mode='r', newline='') as fille:
-    reader = csv.reader(fille)
-    for row in reader:
-        RegisteredClients.append(tuple(row))
-
-with open(CSV_FILE, mode='w', newline='') as theFile:
+with open(processingCSV_FILE, mode='w', newline='') as theFile:
     writer = csv.writer(theFile)
-    writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
+    #writer.writerow(["command"])
 
 def writeToCSV():
     with open(CSV_FILE, mode='w', newline='') as file:
@@ -51,8 +47,9 @@ def updateUserCommands():
     with open(processingCSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
         for command in processingCommands:
-            writer.writerow(command)
-    
+            if command == "Quit TCP" or command == "Quit UDP":
+                continue
+            writer.writerow([command])
 
 
 def checkUserRegistered(client_name, client_IP):
@@ -73,7 +70,7 @@ def getDatafromClient(connection, client_address):
             request = data.decode().strip()
             if not request:
                 continue
-            processingCommands.append(request)
+            processingCommands.append(str(request) + " TCP")
             message = ""
             updateUserCommands()
 
@@ -185,8 +182,8 @@ def getDatafromClient(connection, client_address):
                 message = "INVALID COMMAND"
 
             connection.sendall(message.encode())
-            processingCommands.remove(request)
-            updateUserCommands()
+            #processingCommands.remove(request)
+            #updateUserCommands()
 
     finally:
         connection.close()
@@ -258,6 +255,43 @@ def getUDPDataFromClient():
             UDPClients[name] = addr
 
             print(f"UDP address registered for {name}: {addr}")
+
+with open(CSV_FILE, mode='r', newline='') as fille:
+    reader = csv.reader(fille)
+    for row in reader:
+        RegisteredClients.append(tuple(row))
+
+with open(CSV_FILE, mode='w', newline='') as theFile:
+    writer = csv.writer(theFile)
+    writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
+
+oldCommands = []
+
+with open(processingCSV_FILE, mode='r', newline='') as fille:
+    reader = csv.reader(fille)
+    for row in reader:
+        oldCommands.append(tuple(row))
+
+for command in oldCommands:
+    request = ""
+    for subCommand in command:
+        request += str(subCommand) + " "
+    processingCommands.append(request)
+
+for command in processingCommands:
+    parts = command.split()
+    if len(parts) < 2:
+        continue
+    counter = 0
+    commandToRun = ""
+    for item in parts:
+        if counter >= len(parts) - 1:
+            break
+        commandToRun += parts[counter] + " "
+        counter += 1
+    if parts[len(parts) - 1] == "TCP":
+        processingCommands.remove(command)
+        getDatafromClient(commandToRun.encode(), ("", ""))
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = (HOST, PORT)
