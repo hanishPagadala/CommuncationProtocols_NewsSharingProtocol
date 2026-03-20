@@ -94,10 +94,13 @@ def getDatafromClient(connection, client_address):
                             client_name = str(parts[2]).lower()
                             client_IP = str(parts[3])
                             client_UDP_Port = str(parts[4])
-                            if any((client[0] == client_name) or (client[1] == str(client_IP)) for client in RegisteredClients):
+                            if any((client[0] == client_name) or (client[1] == str(client_IP)) for client in RegisteredClients): #change and for multi client testing, back to or for single client per IP
                                 message = f"REGISTER DENIED: RQ: {request_id} ALREADY REGISTERED"
                             else:
                                 RegisteredClients.append((client_name, client_IP, client_UDP_Port))
+                                #Justin Testing
+                                clientSubjects.append([client_name])
+                                print("clientSubjects", clientSubjects)
                                 message = f"REGISTERED {request_id}"
                                 writeToCSV()
             elif command == "Unregister":
@@ -107,11 +110,26 @@ def getDatafromClient(connection, client_address):
                 else:
                     message = "UNREGISTERED " + parts[1]
                     client_name = str(parts[2]).lower()
-                    for client in RegisteredClients:
-                        if client[0] == client_name and client[1] == str(client_address[0]):
-                            RegisteredClients.remove(client)
-                            writeToCSV()
-                            break
+                    if any((client[0] == client_name) or (client[1] == str(client_address[0])) for client in RegisteredClients):
+                        
+                        RegisteredClients.remove(client)
+
+                        #Justin Testing
+                        clientSubjects.remove([client_name])
+                        print("clientSubjects", clientSubjects)
+
+                        writeToCSV()
+                        break
+                    # for client in RegisteredClients:
+                    #     if (client[0] == client_name) and (client[1] == str(client_address[0])):
+                    #         RegisteredClients.remove(client)
+
+                    #         #Justin Testing
+                    #         clientSubjects.remove([client_name])
+                    #         print("clientSubjects", clientSubjects)
+
+                    #         writeToCSV()
+                    #         break
                     else:
                         message = "NOT REGISTERED"
             elif command == "Update":
@@ -138,15 +156,24 @@ def getDatafromClient(connection, client_address):
                 print(request)
                 response = ''
                 parts = request.split()
+                client_name = str(parts[2]).lower()
+
                 print(client_address)
 
-                for item in request.split():
-                    print(item)
+                for item in parts[3:]:  # Skip command, request_id, and client_name; only process actual subjects
+                    print(item) 
                     counter += 1
-                    if counter > 3:
-                        clientSubjects.append(item)
-                        #clientSubjects[client_address[0]].append(item)
-                        response += item + " "
+                    
+                    #clientSubjects.append(item)
+
+                    #Justin testing adding subjects to the clientSubjects list of lists
+                    for name in clientSubjects:
+                        if name[0] == client_name:
+                            if item not in name:
+                                name.append(item)
+
+                    #clientSubjects[client_address[0]].append(item)
+                    response += item + " "
 
                 print(clientSubjects)
                 message = "SUBJECTS UPDATED " + response
