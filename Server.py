@@ -91,7 +91,7 @@ def getDatafromClient(connection, client_address):
                             client_name = str(parts[2]).lower()
                             client_IP = str(parts[3])
                             client_UDP_Port = str(parts[4])
-                            if any((client[0] == client_name) or (client[1] == str(client_IP)) for client in RegisteredClients): #change and for multi client testing, back to or for single client per IP
+                            if any((client[0] == client_name) for client in RegisteredClients): #change and for multi client testing, back to or for single client per IP
                                 message = f"REGISTER DENIED: RQ: {request_id} ALREADY REGISTERED"
                             else:
                                 RegisteredClients.append((client_name, client_IP, client_UDP_Port))
@@ -134,9 +134,9 @@ def getDatafromClient(connection, client_address):
                     client_name = str(client_name_raw).lower()
                     
                     for client in RegisteredClients:
-                        if (client[0] == client_name) or (client[1] == str(client_address[0])):
+                        if (client[0] == client_name):
                             RegisteredClients.remove(client)
-                            RegisteredClients.append((client_name, str(client_address[0]), str(parts[3])))
+                            RegisteredClients.append((client_name, str(client_address[0]), str(parts[3]))) # Name, IP, UDP Socket
 
                             message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + client_address[0] + " " + parts[3]
                             writeToCSV()
@@ -171,14 +171,14 @@ def getDatafromClient(connection, client_address):
                 for name in clientSubjects:
                     if name[0] == client_name:
                         clientSubjects.remove(name)
-                        clientSubjects.append([client_name])
-
+                        
+                clientSubjects.append([client_name])
                 for name in clientSubjects:
                     if name[0] == client_name:
                         for item in splitSubjects:  # Skip command, request_id, and client_name; only process actual subjects
                             name.append(item)
                             response += item + " "
-                print(clientSubjects)
+                print("The Client Subjects are" + str(clientSubjects))
                 message = "SUBJECTS UPDATED " + response
 
                 
@@ -200,43 +200,66 @@ def getUDPDataFromClient():
         data, addr = udpSock.recvfrom(4096)
         message = data.decode()
         parts = message.split()
+        if not parts:
+            continue
         command = parts[0]
 
         message = ""
         # publish function
+        # change it to command.lower()
         if command == "Publish":
+            if len(parts) < 6:
+                udpSock.sendto("PUBLISH-DENIED INVALID-FORMAT".encode(), addr)
+                continue
+
             rq = parts[1]
             name = parts[2]
             subject = parts[3]
             title = parts[4]
             text = " ".join(parts[5:])
+            sender_name = str(name).lower()
 
             print(f"Publish received from {name}")
 
-            if not any((client[0] == str(name).lower()) for client in RegisteredClients):
+            if not any((client[0] == sender_name) for client in RegisteredClients):
                 message = f"PUBLISH-DENIED {rq} UserNotRegistered "
                 udpSock.sendto(message.encode(), addr)
                 continue
 
             UDPClients[name] = addr
 
-            if not any(clientSubject == subject for clientSubject in clientSubjects):
-                message = f"PUBLISH-DENIED {rq} SubjectNotRegistered"
-                udpSock.sendto(message.encode(), addr)
-                continue
+            # if not any(clientSubject == subject for clientSubject in clientSubjects):
+            #     message = f"PUBLISH-DENIED {rq} SubjectNotRegistered"
+            #     udpSock.sendto(message.encode(), addr)
+            #     continue
 
-            for user in clientSubjects:
-                if subject in clientSubjects[user] and user != name:
-                    if user in RegisteredClients:
-                        user_addr = UDPClients[user]
-                        messageToSend = f"MESSAGE {name} {subject} {title} {text}"
-                        udpSock.sendto(messageToSend.encode(), user_addr)
-                        print(f"Forwarding message to {user}")
+            for client in RegisteredClients:
+                if len(client) < 3:
+                    continue
+
+                client_name = str(client[0]).lower()
+                client_ip = client[1]
+                client_port = client[2]
+
+                # Do not send publish messages back to the publisher.
+                if client_name == sender_name:
+                    continue
+
+                try:
+                    user_addr = (client_ip, int(client_port))
+                except ValueError:
+                    print(f"Skipping invalid UDP port for client entry: {client}")
+                    continue
+
+                messageToSend = f"PUBLISH {name} {subject} {title} {text}"
+                print(f"Forwarding publish to {client_name}")
+                udpSock.sendto(messageToSend.encode(), user_addr)
+                                
+
             udpSock.sendto(
                 f"PUBLISH-OK {rq}".encode(),
                 addr
             )
-
         # publish comment function
         elif command == "PUBLISH-COMMENT":
             name = str(parts[1]).lower()
@@ -265,7 +288,23 @@ def getUDPDataFromClient():
 with open(CSV_FILE, mode='r', newline='') as fille:
     reader = csv.reader(fille)
     for row in reader:
-        RegisteredClients.append(tuple(row))
+        if len(row) < 3:
+            continue
+
+        row_name = row[0].strip().lower()
+        row_ip = row[1].strip()
+        row_udp_port = row[2].strip()
+
+        # Ignore CSV header lines and malformed rows.
+        if row_name == 'client name':
+            continue
+
+        try:
+            int(row_udp_port)
+        except ValueError:
+            continue
+
+        RegisteredClients.append((row_name, row_ip, row_udp_port))
 
 with open(CSV_FILE, mode='w', newline='') as theFile:
     writer = csv.writer(theFile)

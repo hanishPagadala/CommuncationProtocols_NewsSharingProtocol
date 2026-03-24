@@ -22,6 +22,62 @@ clientIP = socket.gethostbyname(socket.gethostname())
 server_address = (serverAddress, 10000)
 #server_address = ('132.205.46.76', 10000)
 
+udpListenerSock = None
+udpListenerThread = None
+udpListenerStopEvent = threading.Event()
+
+
+def udpListenerLoop(sock):
+    while not udpListenerStopEvent.is_set():
+        try:
+            data, addr = sock.recvfrom(4096)
+        except socket.timeout:
+            continue
+        except OSError:
+            break
+
+        if not data:
+            continue
+
+        reply = data.decode(errors="replace")
+        print(f"\n[UDP] {reply} from {addr}")
+
+
+def stopUDPListener():
+    global udpListenerSock
+    global udpListenerThread
+
+    udpListenerStopEvent.set()
+
+    if udpListenerSock is not None:
+        try:
+            udpListenerSock.close()
+        except OSError:
+            pass
+        udpListenerSock = None
+
+    if udpListenerThread is not None and udpListenerThread.is_alive():
+        udpListenerThread.join(timeout=1.5)
+    udpListenerThread = None
+
+
+def startUDPListener(port):
+    global udpListenerSock
+    global udpListenerThread
+
+    stopUDPListener()
+    udpListenerStopEvent.clear()
+
+    listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind((udpHOST, int(port)))
+    listener.settimeout(1.0)
+
+    udpListenerSock = listener
+    udpListenerThread = threading.Thread(target=udpListenerLoop, args=(listener,), daemon=True)
+    udpListenerThread.start()
+    print(f"UDP listener started on {udpHOST}:{port}")
+
 def sendMessage(message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(server_address)
@@ -39,6 +95,7 @@ def sendMessage(message):
         if reply[0] == "UPDATE-CONFIRMED":
             global PORTNo
             PORTNo = int(reply[4])
+            startUDPListener(PORTNo)
 
 
     print("no more info to receive from the server at", server_address)
@@ -46,23 +103,26 @@ def sendMessage(message):
     time.sleep(0.2)
 
 def sendUDPMessage(message, local_port):
-    #moved socket initialization from top of file to here
+    # Use a short-lived UDP socket to send publish command and await ACK.
+    # Incoming publishes are handled by the background listener on PORTNo.
     udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        udpSock.bind((udpHOST, local_port)) #binding to an assigned port
+        udpSock.settimeout(3)
         udpSock.sendto(message.encode(), (serverAddress, udpServerPort))
         print(f"Sending Message to Server UDP on port {local_port}")
 
-        data = udpSock.recvfrom(4096)
-        reply = data[0].decode()
-        addr = data[1]
-
-        print("Received:", reply, "from", addr)    
-        time.sleep(0.2)
+        try:
+            data = udpSock.recvfrom(4096)
+            reply = data[0].decode()
+            addr = data[1]
+            print("Received:", reply, "from", addr)
+        except socket.timeout:
+            print("No UDP acknowledgement received from server")
     finally:
         udpSock.close()
 
 try:
+    startUDPListener(PORTNo)
     while True:
         time.sleep(0.1) 
         message = ""
@@ -135,4 +195,5 @@ try:
             break
         Request += 1
 finally:
+    stopUDPListener()
     time.sleep(0.5)
