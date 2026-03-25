@@ -30,6 +30,7 @@ availablePublications = []
 UDPClients = {}
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
+userSubjects_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'userSubjects.csv')
 UDPClients = {}
         
 
@@ -44,6 +45,12 @@ def writeToCSV():
         for client in RegisteredClients:
             writer.writerow([client[0], client[1], client[2]])
 
+    with open(userSubjects_FILE, mode='w', newline='') as fil:
+        writer = csv.writer(fil)
+        writer.writerow(['Client Subjects'])
+        for subjects in clientSubjects:
+            writer.writerow([subjects])
+
 def updateUserCommands():
     with open(processingCSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
@@ -52,12 +59,6 @@ def updateUserCommands():
                 continue
             writer.writerow([command])
 
-
-def checkUserRegistered(client_name, client_IP):
-    for client in RegisteredClients:
-        if client[0] == client_name and client[1] == str(client_IP):
-            return True
-    return False
 
 def getDatafromClient(connection, client_address):
     try:
@@ -145,16 +146,12 @@ def getDatafromClient(connection, client_address):
                         else:
                             message = "UPDATE-DENIED " + request_id + " Name and IP not registered"
             elif command == "Subjects":
-                counter = 0
                 print(request)
                 response = ''
                 parts = request.split()
                 listOfSubjects = " ".join(parts[3:])
                 splitSubjects = listOfSubjects.split(",") 
-                print(listOfSubjects)
                 client_name = str(parts[2]).lower()
-
-                print(client_address)
 
                 for name in clientSubjects:
                     if name[0] == client_name:
@@ -166,6 +163,8 @@ def getDatafromClient(connection, client_address):
                         for item in splitSubjects:  # Skip command, request_id, and client_name; only process actual subjects
                             name.append(item)
                             response += item + " "
+                
+                writeToCSV()
                 print("The Client Subjects are" + str(clientSubjects))
                 message = "SUBJECTS UPDATED " + response
 
@@ -326,6 +325,17 @@ with open(CSV_FILE, mode='r', newline='') as fille:
             continue
 
         RegisteredClients.append((row_name, row_ip, row_udp_port))
+
+with open(userSubjects_FILE, mode='r', newline='') as fill:
+    reader = csv.reader(fill)
+    for row in reader:
+        # Ignore CSV header lines and malformed rows.
+        if row[0] == 'Client Subjects':
+            continue
+
+        clientSubjects.append((row[0]))
+
+print("Client Subjects from Save: " + str(clientSubjects))
 
 with open(CSV_FILE, mode='w', newline='') as theFile:
     writer = csv.writer(theFile)
