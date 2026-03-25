@@ -17,7 +17,8 @@ udpServerPort = 8888
 #     sys.exit()
 
 Request = 0
-Name = "Lebron"
+userName = "Lebron"
+registered = False
 clientIP = socket.gethostbyname(socket.gethostname())
 server_address = (serverAddress, 10000)
 #server_address = ('132.205.46.76', 10000)
@@ -65,7 +66,7 @@ def startUDPListener(port):
     global udpListenerSock
     global udpListenerThread
 
-    stopUDPListener()
+    stopUDPListener()       # If there is already a present one, cut it off (update command)
     udpListenerStopEvent.clear()
 
     listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -79,15 +80,18 @@ def startUDPListener(port):
     print(f"UDP listener started on {udpHOST}:{port}")
 
 def sendMessage(message):
+    #TCP send and recieve, closes after each message
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(server_address)
     print("Connected to server at", server_address)
 
     sock.sendall(message.encode())
     print("Sending Message to Server")
+    global registered
+    global Request
 
     recieved = ""
-    data = sock.recv(1024)
+    data = sock.recv(4096)
     if data:
         recieved += data.decode()
         print("Received:", recieved)
@@ -96,6 +100,14 @@ def sendMessage(message):
             global PORTNo
             PORTNo = int(reply[4])
             startUDPListener(PORTNo)
+        elif reply[0] == "REGISTERED":
+            registered = True
+        elif reply[0] == "UNREGISTERED":
+            registered = False
+            Request = 0
+        elif (reply[3] == "ALREADY") and (reply[4] == "REGISTERED"):
+            print("Registration denied: You are already registered. Please update your information or unregister first.")
+            registered = True
 
 
     print("no more info to receive from the server at", server_address)
@@ -103,8 +115,7 @@ def sendMessage(message):
     time.sleep(0.2)
 
 def sendUDPMessage(message, local_port):
-    # Use a short-lived UDP socket to send publish command and await ACK.
-    # Incoming publishes are handled by the background listener on PORTNo.
+    # Regular send and recieve UDP Messages, closes after each message
     udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         udpSock.settimeout(3)
@@ -124,63 +135,84 @@ def sendUDPMessage(message, local_port):
 try:
     startUDPListener(PORTNo)
     while True:
-        time.sleep(0.1) 
+        time.sleep(0.05) 
         message = ""
-        userAction = input("Choose an Action: Register | Unregister | Update | Subjects | Publish | Comment | Quit: ")
-        userAction = userAction.lower()
         messageType = ""
-        if (userAction == "register"):
 
-            userName = input("Enter your name: ")
-            message = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo)
-            messageType = "TCP"
+        if not registered:
+            userAction = input("Choose an Action: Register | Quit: ")
+            userAction = userAction.lower()
 
-        elif userAction == "unregister":
-
-            userName = input("Enter your name: ")
-            message = "Unregister " + str(Request) + " " + userName
-            messageType = "TCP"
-
-        elif userAction == "update":
-
-            userName = input("Enter your name: ")
-            newPort = input("Enter your new UDP port: ")
-            message = "Update " + str(Request) + " " + userName + " " + newPort
-            messageType = "TCP"
-
-        elif userAction == "subjects":
-            
-            userName = input("Enter your name: ")
-            listOfSubjects = input("Enter the subjects you want to subscribe to (comma separated separated): ")
-            message = "Subjects " + str(Request) + " " + userName + " " + listOfSubjects
-            messageType = "TCP"
-
-        elif userAction == "comment":
-
-            userName = input("Enter your name: ")
-            listOfSubjects = input("Enter the subject you wish to publish: ")
-            subjectTitle = input("Enter the title of your publication: ")
-            subjectText = input("Enter your comment: ")
-            message = "Subjects " + str(Request) + " " + userName + " " + listOfSubjects + " " + subjectTitle + " " + subjectText
-            messageType = "TCP"
-
-        elif userAction == "quit":
-
-            message = "Quit"
-            messageType = "TCP"
-
-        elif userAction == "publish":
-
-            userName = input("Enter your name: ")
-            userSubject = input("Enter the subject you wish to publish: ")
-            subjectTitle = input("Enter the title of your publication: ")
-            subjectText = input("Enter the text of your publication: ")
-            message = "Publish " + str(Request) + " " + userName + " "+ userSubject + " Titl3:" + subjectTitle + " T3xt:" + subjectText
-            messageType = "UDP"
-
+            if (userAction == "register"):
+                if registered:
+                    print("You are already registered. Please update your information or unregister first.")
+                    continue
+                else:
+                    userName = input("Enter your name: ")
+                    message = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo)
+                    messageType = "TCP"
+            elif userAction == "quit":
+                message = "Quit"
+                messageType = "TCP"
         else:
-            message = "Penis"
-            messageType = "TCP"
+            userAction = input("Choose an Action: Update | Subjects | Publish | Comment | Unregister | Quit: ")
+            userAction = userAction.lower()
+
+            if (userAction == "register"):
+                if registered:
+                    print("You are already registered. Please update your information or unregister first.")
+                    continue
+                else:
+                    userName = input("Enter your name: ")
+                    message = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo)
+                    messageType = "TCP"
+
+            elif userAction == "unregister":
+
+                if not registered:
+                    print("You are not registered.")
+                    continue
+                else:
+                    message = "Unregister " + str(Request) + " " + userName
+                    messageType = "TCP"
+
+            elif userAction == "update":
+
+                newPort = input("Enter your new UDP port: ")
+                message = "Update " + str(Request) + " " + userName + " " + newPort
+                messageType = "TCP"
+
+            elif userAction == "subjects":
+                
+                listOfSubjects = input("Enter the subjects you want to subscribe to (comma separated separated): ")
+                message = "Subjects " + str(Request) + " " + userName + " " + listOfSubjects
+                messageType = "TCP"
+
+            elif userAction == "comment":
+
+                listOfSubjects = input("Enter the subject you wish to publish: ")
+                subjectTitle = input("Enter the title of your publication: ")
+                subjectText = input("Enter your comment: ")
+                message = "Subjects " + str(Request) + " " + userName + " " + listOfSubjects + " " + subjectTitle + " " + subjectText
+                messageType = "TCP"
+
+            elif userAction == "quit":
+
+                message = "Quit"
+                messageType = "TCP"
+
+            elif userAction == "publish":
+
+                userSubject = input("Enter the subject you wish to publish: ")
+                subjectTitle = input("Enter the title of your publication: ")
+                subjectText = input("Enter the text of your publication: ")
+                message = "Publish " + str(Request) + " " + userName + " "+ userSubject + " Titl3:" + subjectTitle + " T3xt: " + subjectText
+                messageType = "UDP"
+
+            else:
+
+                message = "Penis"
+                messageType = "TCP"
         
         if messageType == "TCP":
             tcpThread = threading.Thread(target=sendMessage, args=(message, )) 
@@ -196,4 +228,4 @@ try:
         Request += 1
 finally:
     stopUDPListener()
-    time.sleep(0.5)
+    time.sleep(0.05)

@@ -92,7 +92,7 @@ def getDatafromClient(connection, client_address):
                             client_IP = str(parts[3])
                             client_UDP_Port = str(parts[4])
                             if any((client[0] == client_name) for client in RegisteredClients): #change and for multi client testing, back to or for single client per IP
-                                message = f"REGISTER DENIED: RQ: {request_id} ALREADY REGISTERED"
+                                message = f"REGISTER DENIED: {request_id} ALREADY REGISTERED"
                             else:
                                 RegisteredClients.append((client_name, client_IP, client_UDP_Port))
                                 #Justin Testing
@@ -155,19 +155,6 @@ def getDatafromClient(connection, client_address):
 
                 print(client_address)
 
-                # for item in parts[3:]:  # Skip command, request_id, and client_name; only process actual subjects
-                #     print(item) 
-                #     counter += 1
-                    
-                #     #clientSubjects.append(item)
-
-                #     #Justin testing adding subjects to the clientSubjects list of lists
-                    
-                    
-
-                #     #clientSubjects[client_address[0]].append(item)
-                #     response += item + " "
-
                 for name in clientSubjects:
                     if name[0] == client_name:
                         clientSubjects.remove(name)
@@ -215,8 +202,8 @@ def getUDPDataFromClient():
             rq = parts[1]
             name = parts[2]
             subject = parts[3]
-            title = parts[4]
-            text = " ".join(parts[5:])
+            title = parts[4][6:]
+            text = " ".join(parts[6:])
             sender_name = str(name).lower()
 
             print(f"Publish received from {name}")
@@ -227,11 +214,6 @@ def getUDPDataFromClient():
                 continue
 
             UDPClients[name] = addr
-
-            # if not any(clientSubject == subject for clientSubject in clientSubjects):
-            #     message = f"PUBLISH-DENIED {rq} SubjectNotRegistered"
-            #     udpSock.sendto(message.encode(), addr)
-            #     continue
 
             for client in RegisteredClients:
                 if len(client) < 3:
@@ -244,17 +226,22 @@ def getUDPDataFromClient():
                 # Do not send publish messages back to the publisher.
                 if client_name == sender_name:
                     continue
-
-                try:
-                    user_addr = (client_ip, int(client_port))
-                except ValueError:
-                    print(f"Skipping invalid UDP port for client entry: {client}")
-                    continue
-
-                messageToSend = f"PUBLISH {name} {subject} {title} {text}"
-                print(f"Forwarding publish to {client_name}")
-                udpSock.sendto(messageToSend.encode(), user_addr)
-                                
+                
+                for userSubjects in clientSubjects:
+                    #if userSubjects[0] != sender_name:
+                    if subject in userSubjects[1:]:
+                        try:
+                            user_addr = (client_ip, int(client_port))
+                        except ValueError:
+                            print(f"Skipping invalid UDP port for client entry: {client}")
+                            continue
+                        
+                        messageToSend = f"Message {name} {subject} {title} {text}"
+                        #print(f"Forwarding publish to {client_name}")
+                        udpSock.sendto(messageToSend.encode(), user_addr)                      
+                    else:
+                        print(f"Skipping {client_name} for publish: not subscribed to {subject}")
+                        continue
 
             udpSock.sendto(
                 f"PUBLISH-OK {rq}".encode(),
