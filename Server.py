@@ -26,6 +26,7 @@ udpThread = None
 RegisteredClients = []
 clientSubjects = []
 processingCommands = []
+availablePublications = []
 UDPClients = {}
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
@@ -237,7 +238,11 @@ def getUDPDataFromClient():
                             continue
                         
                         messageToSend = f"Message {name} {subject} {title} {text}"
-                        #print(f"Forwarding publish to {client_name}")
+                        if not any( (publication[0] == subject) and (publication[1] == title) for publication in availablePublications):
+                            availablePublications.append((subject, title))
+                        if len(availablePublications) < 1:
+                            availablePublications.append((subject, title))
+
                         udpSock.sendto(messageToSend.encode(), user_addr)                      
                     else:
                         print(f"Skipping {client_name} for publish: not subscribed to {subject}")
@@ -247,22 +252,51 @@ def getUDPDataFromClient():
                 f"PUBLISH-OK {rq}".encode(),
                 addr
             )
+
         # publish comment function
-        elif command == "PUBLISH-COMMENT":
-            name = str(parts[1]).lower()
-            subject = parts[2]
-            title = parts[3]
-            text = " ".join(parts[4:])
+        elif command == "Publish-Comment":
+            name = str(parts[2]).lower()
+            subject = parts[3]
+            title = parts[4]
+            text = " ".join(parts[5:])
 
             print(f"Comment received from {name} on {subject}")
 
-            for user in clientSubjects:
-                if subject in clientSubjects[user]:
-                    if user in RegisteredClients:
-                        user_addr = UDPClients[user]
-                        messageToSend = f"COMMENT {name} {subject} {title} {text}"
-                        udpSock.sendto(messageToSend.encode(), user_addr)
-                        print(f"Forwarding comment to {user}")
+            for client in RegisteredClients:
+                if len(client) < 3:
+                    continue
+
+                client_name = str(client[0]).lower()
+                client_ip = client[1]
+                client_port = client[2]
+                
+                for publications in availablePublications:
+                    if (publications[0] == subject) and (publications[1] == title):
+
+                        for userSubjects in clientSubjects:
+                            if subject in userSubjects[1:]:
+                                try:
+                                    user_addr = (client_ip, int(client_port))
+                                except ValueError:
+                                    print(f"Skipping invalid UDP port for client entry: {client}")
+                                    continue
+                                
+                                messageToSend = f"Message {name} {subject} {title} {text}"
+                                if not any( (publication[0] == subject) and (publication[1] == title) for publication in availablePublications):
+                                    availablePublications.append((subject, title))
+                                if len(availablePublications) < 1:
+                                    availablePublications.append((subject, title))
+
+                                udpSock.sendto(messageToSend.encode(), user_addr)                      
+                            else:
+                                print(f"Skipping {client_name} for comment: not subscribed to {subject}")
+                                continue
+
+
+            udpSock.sendto(
+                f"COMMENT-OK {rq}".encode(),
+                addr
+            )
 
         elif command == "HELLO":
 

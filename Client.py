@@ -82,35 +82,39 @@ def startUDPListener(port):
 def sendMessage(message):
     #TCP send and recieve, closes after each message
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(server_address)
-    print("Connected to server at", server_address)
+    try:
+        sock.connect(server_address)
+        sock.settimeout(3.0)
 
-    sock.sendall(message.encode())
-    print("Sending Message to Server")
-    global registered
-    global Request
+        sock.sendall(message.encode())
+        global registered
+        global Request
 
-    recieved = ""
-    data = sock.recv(4096)
-    if data:
-        recieved += data.decode()
-        print("Received:", recieved)
-        reply = recieved.split()
-        if reply[0] == "UPDATE-CONFIRMED":
-            global PORTNo
-            PORTNo = int(reply[4])
-            startUDPListener(PORTNo)
-        elif reply[0] == "REGISTERED":
-            registered = True
-        elif reply[0] == "UNREGISTERED":
-            registered = False
-            Request = 0
-        elif (reply[3] == "ALREADY") and (reply[4] == "REGISTERED"):
-            print("Registration denied: You are already registered. Please update your information or unregister first.")
-            registered = True
+        recieved = ""
+        data = sock.recv(4096)
+        if data:
+            recieved += data.decode()
+            print("Received:", recieved)
+            reply = recieved.split()
+            if reply[0] == "UPDATE-CONFIRMED":
+                global PORTNo
+                PORTNo = int(reply[4])
+                startUDPListener(PORTNo)
+            elif reply[0] == "REGISTERED":
+                registered = True
+            elif reply[0] == "UNREGISTERED":
+                registered = False
+                Request = 0
+            
+            if (len(reply) > 4) and(reply[3] == "ALREADY") and (reply[4] == "REGISTERED"):
+                print("Registration denied: You are already registered. Please update your information or unregister first.")
+                registered = True
 
+    except socket.timeout:
+        print("No response received from server within timeout period.")
+    except ConnectionRefusedError:
+        print("Connection refused by the server. Please ensure the server is running and reachable.")
 
-    print("no more info to receive from the server at", server_address)
     sock.close()
     time.sleep(0.2)
 
@@ -118,9 +122,8 @@ def sendUDPMessage(message, local_port):
     # Regular send and recieve UDP Messages, closes after each message
     udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        udpSock.settimeout(3)
+        udpSock.settimeout(3.0)
         udpSock.sendto(message.encode(), (serverAddress, udpServerPort))
-        print(f"Sending Message to Server UDP on port {local_port}")
 
         try:
             data = udpSock.recvfrom(4096)
@@ -190,11 +193,11 @@ try:
 
             elif userAction == "comment":
 
-                listOfSubjects = input("Enter the subject you wish to publish: ")
+                subject = input("Enter the subject you wish to publish: ")
                 subjectTitle = input("Enter the title of your publication: ")
                 subjectText = input("Enter your comment: ")
-                message = "Subjects " + str(Request) + " " + userName + " " + listOfSubjects + " " + subjectTitle + " " + subjectText
-                messageType = "TCP"
+                message = "Publish-Comment " + str(Request) + " " + userName + " " + subject + " " + subjectTitle + " " + subjectText
+                messageType = "UDP"
 
             elif userAction == "quit":
 
