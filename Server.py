@@ -28,10 +28,10 @@ clientSubjects = []
 processingCommands = []
 availablePublications = []
 UDPClients = {}
+
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
 userSubjects_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'userSubjects.csv')
-UDPClients = {}
         
 
 with open(processingCSV_FILE, mode='w', newline='') as theFile:
@@ -222,13 +222,8 @@ def getUDPDataFromClient():
                 client_name = str(client[0]).lower()
                 client_ip = client[1]
                 client_port = client[2]
-
-                # Do not send publish messages back to the publisher.
-                if client_name == sender_name:
-                    continue
                 
                 for userSubjects in clientSubjects:
-                    #if userSubjects[0] != sender_name:
                     if subject in userSubjects[1:]:
                         try:
                             user_addr = (client_ip, int(client_port))
@@ -237,6 +232,7 @@ def getUDPDataFromClient():
                             continue
                         
                         messageToSend = f"Message {name} {subject} {title} {text}"
+
                         if not any( (publication[0] == subject) and (publication[1] == title) for publication in availablePublications):
                             availablePublications.append((subject, title))
                         if len(availablePublications) < 1:
@@ -280,11 +276,7 @@ def getUDPDataFromClient():
                                     print(f"Skipping invalid UDP port for client entry: {client}")
                                     continue
                                 
-                                messageToSend = f"Message {name} {subject} {title} {text}"
-                                if not any( (publication[0] == subject) and (publication[1] == title) for publication in availablePublications):
-                                    availablePublications.append((subject, title))
-                                if len(availablePublications) < 1:
-                                    availablePublications.append((subject, title))
+                                messageToSend = f"Comment {name} {subject} {title} {text}"
 
                                 udpSock.sendto(messageToSend.encode(), user_addr)                      
                             else:
