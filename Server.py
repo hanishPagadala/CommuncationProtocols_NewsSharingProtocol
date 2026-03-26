@@ -4,6 +4,7 @@ import threading
 import sys
 import csv #hello
 
+
 HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
 PORT = 10000
 
@@ -28,6 +29,7 @@ clientSubjects = []
 processingCommands = []
 availablePublications = []
 UDPClients = {}
+numClients = 0
 
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
@@ -95,18 +97,20 @@ def getDatafromClient(connection, client_address):
                             client_UDP_Port = str(parts[4])
                             if any((client[0] == client_name) for client in RegisteredClients): #change and for multi client testing, back to or for single client per IP
                                 message = f"REGISTER DENIED: {request_id} ALREADY REGISTERED"
+                                global numClients
+                                numClients += 1
                             else:
-                                RegisteredClients.append((client_name, client_IP, client_UDP_Port))
-                                #Justin Testing
-                                clientSubjects.append([client_name])
-                                print("clientSubjects", clientSubjects)
-                                message = f"REGISTERED {request_id}"
-                                writeToCSV()
-            elif command == "Unregister":
-                parts = request.split()
-                if len(parts) < 3:
-                    message = "UNREGISTER-DENIED: INVALID REQUEST FORMAT"
-                else:
+                                
+                                if numClients < 1:
+                                    RegisteredClients.append((client_name, client_IP, client_UDP_Port))
+                                    #Justin Testing
+                                    clientSubjects.append([client_name])
+                                    print("clientSubjects", clientSubjects)
+                                    message = f"REGISTERED {request_id}"
+                                    writeToCSV()
+                                    numClients += 1
+                                else:
+                                    message = "REFER " + request_id + " " 
                     client_name = str(parts[2]).lower()
                     for client in RegisteredClients:
                         print(client[0], client_name)
@@ -115,7 +119,8 @@ def getDatafromClient(connection, client_address):
 
                             #Justin Testing
                             message = "UNREGISTERED " + parts[1]
-                            
+                            numClients -= 1
+
                             for subject in clientSubjects:
                                 if subject[0] == client_name:
                                     clientSubjects.remove(subject)
