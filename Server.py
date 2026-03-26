@@ -34,6 +34,27 @@ numClients = 0
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
 userSubjects_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'userSubjects.csv')
+
+
+def normalize_subject_row(row):
+    if not row:
+        return None
+
+    name = str(row[0]).strip().lower()
+    if not name or name == 'client subjects':
+        return None
+
+    subjects = []
+    for item in row[1:]:
+        cleaned = str(item).strip()
+        if cleaned:
+            subjects.append(cleaned)
+
+    return [name, *subjects]
+
+
+def is_registered_client(name):
+    return any(client[0] == name for client in RegisteredClients)
         
 
 with open(processingCSV_FILE, mode='w', newline='') as theFile:
@@ -49,9 +70,10 @@ def writeToCSV():
 
     with open(userSubjects_FILE, mode='w', newline='') as fil:
         writer = csv.writer(fil)
-        writer.writerow(['Client Subjects'])
         for subjects in clientSubjects:
-            writer.writerow([subjects])
+            normalized = normalize_subject_row(subjects)
+            if normalized is not None and is_registered_client(normalized[0]):
+                writer.writerow(normalized)
 
 def updateUserCommands():
     with open(processingCSV_FILE, mode='w', newline='') as file:
@@ -111,26 +133,28 @@ def getDatafromClient(connection, client_address):
                                     numClients += 1
                                 else:
                                     message = "REFER " + request_id + " " 
-                    client_name = str(parts[2]).lower()
-                    for client in RegisteredClients:
-                        print(client[0], client_name)
-                        if (client[0] == client_name):
-                            RegisteredClients.remove(client)
+                    
+            elif command == "Unregister":
+                client_name = str(parts[2]).lower()
+                for client in RegisteredClients:
+                    print(client[0], client_name)
+                    if (client[0] == client_name):
+                        RegisteredClients.remove(client)
 
-                            #Justin Testing
-                            message = "UNREGISTERED " + parts[1]
-                            numClients -= 1
+                        #Justin Testing
+                        message = "UNREGISTERED " + parts[1]
+                        numClients -= 1
 
-                            for subject in clientSubjects:
-                                if subject[0] == client_name:
-                                    clientSubjects.remove(subject)
+                        for subject in clientSubjects:
+                            if subject[0] == client_name:
+                                clientSubjects.remove(subject)
 
-                            print("clientSubjects", clientSubjects)
+                        print("clientSubjects", clientSubjects)
 
-                            writeToCSV()
-                            break
-                        else:
-                            message = "NOT REGISTERED"
+                        writeToCSV()
+                        break
+                    else:
+                        message = "NOT REGISTERED"
             elif command == "Update":
                 parts = request.split()
                 if len(parts) < 3:
@@ -155,7 +179,7 @@ def getDatafromClient(connection, client_address):
                 response = ''
                 parts = request.split()
                 listOfSubjects = " ".join(parts[3:])
-                splitSubjects = listOfSubjects.split(",") 
+                splitSubjects = [item.strip() for item in listOfSubjects.split(",") if item.strip()]
                 client_name = str(parts[2]).lower()
 
                 for name in clientSubjects:
@@ -170,7 +194,7 @@ def getDatafromClient(connection, client_address):
                             response += item + " "
                 
                 writeToCSV()
-                print("The Client Subjects are" + str(clientSubjects))
+                print(clientSubjects)
                 message = "SUBJECTS UPDATED " + response
 
                 
@@ -326,17 +350,17 @@ with open(CSV_FILE, mode='r', newline='') as fille:
 with open(userSubjects_FILE, mode='r', newline='') as fill:
     reader = csv.reader(fill)
     for row in reader:
-        # Ignore CSV header lines and malformed rows.
-        if row[0] == 'Client Subjects':
-            continue
-
-        clientSubjects.append((row[0]))
-
-print("Client Subjects from Save: " + str(clientSubjects))
+        normalized = normalize_subject_row(row)
+        if normalized is not None and is_registered_client(normalized[0]):
+            clientSubjects.append(normalized)
 
 with open(CSV_FILE, mode='w', newline='') as theFile:
     writer = csv.writer(theFile)
     writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
+
+writeToCSV()
+for subject in clientSubjects:
+    print(subject[0])
 
 oldCommands = []
 
