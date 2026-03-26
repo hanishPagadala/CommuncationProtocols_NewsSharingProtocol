@@ -57,10 +57,6 @@ def is_registered_client(name):
     return any(client[0] == name for client in RegisteredClients)
         
 
-with open(processingCSV_FILE, mode='w', newline='') as theFile:
-    writer = csv.writer(theFile)
-    #writer.writerow(["command"])
-
 def writeToCSV():
     with open(CSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
@@ -79,8 +75,6 @@ def updateUserCommands():
     with open(processingCSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
         for command in processingCommands:
-            if command == "Quit TCP" or command == "Quit UDP":
-                continue
             writer.writerow([command])
 
 
@@ -96,10 +90,7 @@ def getDatafromClient(connection, client_address):
             request = data.decode().strip()
             if not request:
                 continue
-            processingCommands.append(str(request) + " TCP")
-            message = ""
-            updateUserCommands()
-
+        
             command = request.split()[0]
             if command == "Register":
                 parts = request.split()
@@ -199,6 +190,27 @@ def getDatafromClient(connection, client_address):
 
                 
             elif command == "Quit":
+                parts = request.split()
+                client_name = str(parts[2]).lower()
+                for client in RegisteredClients:
+                    if (client[0] == client_name):
+                        RegisteredClients.remove(client)
+
+                        #Justin Testing
+                        numClients -= 1
+
+                        for subject in clientSubjects:
+                            if subject[0] == client_name:
+                                clientSubjects.remove(subject)
+
+                        print("clientSubjects", clientSubjects)
+
+                        writeToCSV()
+
+                        print("QUIT CONFIRMED")
+                        break
+                    else:
+                        print("NOT REGISTERED SO CANNOT QUIT")
                 break
             else:
                 message = "INVALID COMMAND"
@@ -214,13 +226,20 @@ def getDatafromClient(connection, client_address):
 def getUDPDataFromClient():
     while True:
         data, addr = udpSock.recvfrom(4096)
-        message = data.decode()
-        parts = message.split()
+        request = data.decode()
+        parts = request.split()
         if not parts:
             continue
         command = parts[0]
 
+
+        processingCommands.append(request)
+        updateUserCommands()
+        print("Processing Commands:", processingCommands)
+
         message = ""
+        
+
         # publish function
         # change it to command.lower()
         if command == "Publish":
@@ -267,7 +286,8 @@ def getUDPDataFromClient():
                         if len(availablePublications) < 1:
                             availablePublications.append((subject, title))
 
-                        udpSock.sendto(messageToSend.encode(), user_addr)                      
+                        udpSock.sendto(messageToSend.encode(), user_addr) 
+                        continue                     
                     else:
                         print(f"Skipping {client_name} for publish: not subscribed to {subject}")
                         continue
@@ -326,6 +346,8 @@ def getUDPDataFromClient():
 
             print(f"UDP address registered for {name}: {addr}")
 
+        
+
 with open(CSV_FILE, mode='r', newline='') as fille:
     reader = csv.reader(fille)
     for row in reader:
@@ -359,6 +381,7 @@ with open(CSV_FILE, mode='w', newline='') as theFile:
     writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
 
 writeToCSV()
+
 for subject in clientSubjects:
     print(subject[0])
 
@@ -386,9 +409,16 @@ for command in processingCommands:
             break
         commandToRun += parts[counter] + " "
         counter += 1
-    if parts[len(parts) - 1] == "TCP":
-        processingCommands.remove(command)
-        getDatafromClient(commandToRun.encode(), ("", ""))
+    # if parts[len(parts) - 1] == "TCP":
+    #     processingCommands.remove(command)
+    #     getDatafromClient(commandToRun.encode(), ("", ""))
+
+print(processingCommands)
+for command in processingCommands:
+    parts = command.split()
+    if len(parts) < 2:
+        continue
+    
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = (HOST, PORT)
