@@ -24,30 +24,29 @@ if SERVER_SELECTION == 1:
     SERVERPORT = 10003
     UDPHOST = '0.0.0.0' 
     UDPPORT = 8888
-    client_server_address = (HOST, CLIENTPORT)
-    server_server_address = (HOST, SERVERPORT)
+
     otherHOST = 'localhost'
     otherClientPORT = 10001
     otherServerPORT = 10002
-    otherClientServerAddress = (otherHOST, otherClientPORT)
-    otherServerServerAddress = (otherHOST, otherServerPORT)
     otherUDPHOST = '0.0.0.0'
     otherUDPPORT = 8889
 if SERVER_SELECTION == 2:
     HOST = 'localhost' 
     CLIENTPORT = 10001
     SERVERPORT = 10002
-    client_server_address = (HOST, CLIENTPORT)
-    server_server_address = (HOST, SERVERPORT)
     UDPHOST = '0.0.0.0'
     UDPPORT = 8889
+
     otherHOST = 'localhost'
     otherClientPORT = 10000
     otherServerPORT = 10003
-    otherClientServerAddress = (otherHOST, otherClientPORT)
-    otherServerServerAddress = (otherHOST, otherServerPORT)
     otherUDPHOST = '0.0.0.0'
     otherUDPPORT = 8888
+
+client_server_address = (HOST, CLIENTPORT)
+server_server_address = (HOST, SERVERPORT)
+otherClientServerAddress = (otherHOST, otherClientPORT)
+otherServerServerAddress = (otherHOST, otherServerPORT)    
 
 # Set up UDP socket for receiving publish/comment commands from clients
 
