@@ -155,7 +155,7 @@ try:
                     message = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo)
                     messageType = "TCP"
             elif userAction == "quit":
-                message = "Quit"
+                message = "Quit " + str(Request) + " " + userName
                 messageType = "TCP"
         else:
             userAction = input("Choose an Action: Update | Subjects | Publish | Comment | Unregister | Quit: ")
@@ -201,7 +201,7 @@ try:
 
             elif userAction == "quit":
 
-                message = "Quit"
+                message = "Quit " + str(Request) + " " + userName
                 messageType = "TCP"
 
             elif userAction == "publish":
