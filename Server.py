@@ -6,11 +6,12 @@ import csv #hello
 
 # Arrays and Global Variables
 
-clientThreads = []
+
 RegisteredClients = []
 clientSubjects = []
-processingCommands = []
 availablePublications = []
+clientThreads = []
+processingCommands = []
 
 numClients = 0
 udpThread = None
@@ -26,8 +27,8 @@ if SERVER_SELECTION == 1:
     UDPPORT = 8888
 
     otherHOST = 'localhost'
-    otherClientPORT = 10001
-    otherServerPORT = 10002
+    otherServerClientPORT = 10001
+    otherServerServerPORT = 10002
     otherUDPHOST = '0.0.0.0'
     otherUDPPORT = 8889
 if SERVER_SELECTION == 2:
@@ -38,15 +39,15 @@ if SERVER_SELECTION == 2:
     UDPPORT = 8889
 
     otherHOST = 'localhost'
-    otherClientPORT = 10000
-    otherServerPORT = 10003
+    otherServerClientPORT = 10000
+    otherServerServerPORT = 10003
     otherUDPHOST = '0.0.0.0'
     otherUDPPORT = 8888
 
 client_server_address = (HOST, CLIENTPORT)
 server_server_address = (HOST, SERVERPORT)
-otherClientServerAddress = (otherHOST, otherClientPORT)
-otherServerServerAddress = (otherHOST, otherServerPORT)    
+otherClientServerAddress = (otherHOST, otherServerClientPORT)
+otherServerServerAddress = (otherHOST, otherServerServerPORT)    
 
 # Set up UDP socket for receiving publish/comment commands from clients
 
@@ -217,10 +218,10 @@ def TCPRegister(request):
                         clientSubjects.append([client_name])
                         print("clientSubjects", clientSubjects)
                         message = f"REGISTERED {request_id}"
-                        writeToCSV()
+                        writeToCSV()When Registering
                         numClients += 1
                     else:
-                        message = "REFER " + request_id + " " 
+                        message = "REFER " + request_id + " " + otherHOST + " " + str(otherServerClientPORT)
     return message
 
 def TCPUnregister(request):
@@ -539,7 +540,7 @@ def handleReceiveServertoServer(connection):
 # Server Code
 clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-otherServerServerAddress = (otherHOST, otherServerPORT)
+otherServerServerAddress = (otherHOST, otherServerServerPORT)
 print(f'starting up on {HOST} port {CLIENTPORT}', file=sys.stderr)
 
 clientSock.bind(client_server_address)
