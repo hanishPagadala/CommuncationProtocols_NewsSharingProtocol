@@ -78,11 +78,8 @@ def updateUserCommands():
     with open(processingCSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
         for command in processingCommands:
-<<<<<<< HEAD
             if command == "Quit":
                 continue
-=======
->>>>>>> 04cc4d594d77e0d6b3ab1b4c6b55e1932897622d
             writer.writerow([command])
 
 
@@ -98,13 +95,8 @@ def getDatafromClient(connection, client_address):
             request = data.decode().strip()
             if not request:
                 continue
-<<<<<<< HEAD
 
             message = ""
-
-=======
-        
->>>>>>> 04cc4d594d77e0d6b3ab1b4c6b55e1932897622d
             command = request.split()[0]
             if command == "Register":
                 parts = request.split()
@@ -361,12 +353,8 @@ def getUDPDataFromClient():
 
             print(f"UDP address registered for {name}: {addr}")
 
-<<<<<<< HEAD
         #processingCommands.remove(request)
         updateUserCommands()
-=======
-        
->>>>>>> 04cc4d594d77e0d6b3ab1b4c6b55e1932897622d
 
 with open(CSV_FILE, mode='r', newline='') as fille:
     reader = csv.reader(fille)
@@ -433,16 +421,13 @@ for command in processingCommands:
     #     processingCommands.remove(command)
     #     getDatafromClient(commandToRun.encode(), ("", ""))
 
-<<<<<<< HEAD
+
 print("Loaded Commands: " + str(processingCommands))
-=======
 print(processingCommands)
 for command in processingCommands:
     parts = command.split()
     if len(parts) < 2:
         continue
-    
->>>>>>> 04cc4d594d77e0d6b3ab1b4c6b55e1932897622d
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = (HOST, PORT)
