@@ -175,11 +175,16 @@ def readCSVInit():
                 break
             commandToRun += parts[counter] + " "
             counter += 1
-        # if parts[len(parts) - 1] == "TCP":
-        #     processingCommands.remove(command)
-        #     getDatafromClient(commandToRun.encode(), ("", ""))
 
-    print(processingCommands)
+    for command in processingCommands:
+        parts = command.split()
+        if len(parts) < 2:
+            continue
+        commandType = parts[0]
+        if commandType == "Publish":
+            UDPPublish(command, None)
+        elif commandType == "Publish-Comment":
+            UDPComment(command, None)
 
 # ================= End General Helper Functions =================
 
@@ -341,6 +346,16 @@ def UDPPublish(request, addr):
     text = text[5:]                 # Remove "T3xt:" prefix
 
     sender_name = str(name).lower()
+
+    if addr == None:
+        if is_registered_client(sender_name):
+            for client in RegisteredClients:
+                if client[0] == sender_name:
+                    addr = (client[1], int(client[2]))
+                    break
+        else:
+            print(f"Cannot process command: sender {sender_name} not registered and no address provided.")
+            return
 
     if not any((client[0] == sender_name) for client in RegisteredClients):
         message = f"PUBLISH-DENIED {rq} UserNotRegistered "
