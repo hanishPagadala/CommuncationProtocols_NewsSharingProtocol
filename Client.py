@@ -198,7 +198,7 @@ try:
                 subject = input("Enter the subject you wish to publish: ")
                 subjectTitle = input("Enter the title of your publication: ")
                 subjectText = input("Enter your comment: ")
-                message = "Publish-Comment " + str(Request) + " " + userName + " " + subject + " " + subjectTitle + " " + subjectText
+                message = "Publish-Comment " + str(Request) + " " + userName + " " + subject + "* " + subjectTitle + "* " + subjectText
                 messageType = "UDP"
 
             elif userAction == "quit":
@@ -211,7 +211,7 @@ try:
                 userSubject = input("Enter the subject you wish to publish: ")
                 subjectTitle = input("Enter the title of your publication: ")
                 subjectText = input("Enter the text of your publication: ")
-                message = "Publish " + str(Request) + " " + userName + " "+ userSubject + " Titl3:" + subjectTitle + " T3xt: " + subjectText
+                message = "Publish " + str(Request) + " " + userName + " Subj3ct:"+ userSubject + "* Titl3:" + subjectTitle + "* T3xt: " + subjectText
                 messageType = "UDP"
 
             else:
