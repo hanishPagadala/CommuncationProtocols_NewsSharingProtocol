@@ -112,6 +112,9 @@ def updateUserCommands():
             writer.writerow([command])
 
 def readCSVInit():
+    # Read from CSV to initialize RegisteredClients and clientSubjects, and clear CSV for new session
+    oldCommands = []
+    
     with open(CSV_FILE, mode='r', newline='') as fille:
         reader = csv.reader(fille)
         for row in reader:
@@ -130,8 +133,8 @@ def readCSVInit():
                 int(row_udp_port)
             except ValueError:
                 continue
-
-        RegisteredClients.append((row_name, row_ip, row_udp_port))
+            if row_name and row_ip and row_udp_port:
+                RegisteredClients.append((row_name, row_ip, row_udp_port))
 
     with open(userSubjects_FILE, mode='r', newline='') as fill:
         reader = csv.reader(fill)
@@ -140,18 +143,20 @@ def readCSVInit():
             if normalized is not None and is_registered_client(normalized[0]):
                 clientSubjects.append(normalized)
 
-    with open(CSV_FILE, mode='w', newline='') as theFile:
-        writer = csv.writer(theFile)
-        writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
-
-    writeToCSV()
-
-    oldCommands = []
-
     with open(processingCSV_FILE, mode='r', newline='') as fille:
         reader = csv.reader(fille)
         for row in reader:
             oldCommands.append(tuple(row))
+
+    writeToCSV()
+
+    # Clear the CSV files for the new session
+    with open(CSV_FILE, mode='w', newline='') as theFile:
+       pass
+    with open(userSubjects_FILE, mode='w', newline='') as theFil:
+        pass
+    with open(processingCSV_FILE, mode='w', newline='') as theFil:
+        pass
 
     for command in oldCommands:
         request = ""
@@ -324,12 +329,17 @@ def UDPPublish(request, addr):
 
     if len(parts) < 6:
         udpSock.sendto("PUBLISH-DENIED INVALID-FORMAT".encode(), addr)
-
     rq = parts[1]
     name = parts[2]
-    subject = parts[3]
-    title = parts[4][6:]
-    text = " ".join(parts[6:])
+
+    importantInfo = " ".join(parts[3:])
+    importantParts = importantInfo.split("*")
+
+    subject = importantParts[0][8:]          # Remove "Subj3ct:" prefix
+    title = importantParts[1][7:]            # Remove "Titl3:" prefix
+    text = " ".join(importantParts[2:])
+    text = text[5:]                 # Remove "T3xt:" prefix
+
     sender_name = str(name).lower()
 
     if not any((client[0] == sender_name) for client in RegisteredClients):
@@ -375,9 +385,13 @@ def UDPComment(request, addr):
 
     rq = parts[1]
     name = str(parts[2]).lower()
-    subject = parts[3]
-    title = parts[4]
-    text = " ".join(parts[5:])
+
+    importantInfo = " ".join(parts[3:])
+    importantParts = importantInfo.split("*")
+
+    subject = importantParts[0]
+    title = importantParts[1][1:]  # Remove leading space from title
+    text = " ".join(importantParts[2:])
 
     for client in RegisteredClients:
         if len(client) < 3:
@@ -388,8 +402,7 @@ def UDPComment(request, addr):
         client_port = client[2]
         
         for publications in availablePublications:
-            if (publications[0] == subject) and (publications[1] == title):
-
+            if (publications[0] == subject) and (publications[1] == title):  
                 for userSubjects in clientSubjects:
                     if subject in userSubjects[1:]:
                         try:
@@ -399,7 +412,6 @@ def UDPComment(request, addr):
                             continue
                         
                         messageToSend = f"Comment {name} {subject} {title} {text}"
-
                         udpSock.sendto(messageToSend.encode(), user_addr)                      
                     else:
                         print(f"Skipping {client_name} for comment: not subscribed to {subject}")
@@ -465,7 +477,7 @@ def getUDPDataFromClient():
         elif command == "Publish-Comment":
             UDPComment(request, addr)
 
-        #processingCommands.remove(request)
+        processingCommands.remove(request)
         updateUserCommands()
 
 # ================= END TCP and UDP Communication Functions =================
