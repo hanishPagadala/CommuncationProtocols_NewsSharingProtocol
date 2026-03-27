@@ -7,6 +7,9 @@ import csv #hello
 HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
 PORT = 10000
 
+HOST2 = 'localhost'
+PORT2 = 10001
+
 UDPHOST = "0.0.0.0"
 UDPPORT = 8888
 
@@ -55,7 +58,7 @@ def updateUserCommands():
     with open(processingCSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
         for command in processingCommands:
-            if command == "Quit TCP" or command == "Quit UDP":
+            if command == "Quit":
                 continue
             writer.writerow([command])
 
@@ -72,9 +75,8 @@ def getDatafromClient(connection, client_address):
             request = data.decode().strip()
             if not request:
                 continue
-            processingCommands.append(str(request) + " TCP")
+
             message = ""
-            updateUserCommands()
 
             command = request.split()[0]
             if command == "Register":
@@ -175,25 +177,26 @@ def getDatafromClient(connection, client_address):
                 message = "INVALID COMMAND"
 
             connection.sendall(message.encode())
-            #processingCommands.remove(request)
-            #updateUserCommands()
 
     finally:
         connection.close()
 
-
 def getUDPDataFromClient():
     while True:
         data, addr = udpSock.recvfrom(4096)
-        message = data.decode()
-        parts = message.split()
+        request = data.decode()
+        parts = request.split()
         if not parts:
             continue
         command = parts[0]
 
         message = ""
         # publish function
-        # change it to command.lower()
+        # change it to command.lower() maybe?
+
+        processingCommands.append(str(request))
+        updateUserCommands()
+
         if command == "Publish":
             if len(parts) < 6:
                 udpSock.sendto("PUBLISH-DENIED INVALID-FORMAT".encode(), addr)
@@ -297,6 +300,9 @@ def getUDPDataFromClient():
 
             print(f"UDP address registered for {name}: {addr}")
 
+        #processingCommands.remove(request)
+        updateUserCommands()
+
 with open(CSV_FILE, mode='r', newline='') as fille:
     reader = csv.reader(fille)
     for row in reader:
@@ -357,9 +363,11 @@ for command in processingCommands:
             break
         commandToRun += parts[counter] + " "
         counter += 1
-    if parts[len(parts) - 1] == "TCP":
-        processingCommands.remove(command)
-        getDatafromClient(commandToRun.encode(), ("", ""))
+    # if parts[len(parts) - 1] == "TCP":
+    #     processingCommands.remove(command)
+    #     getDatafromClient(commandToRun.encode(), ("", ""))
+
+print("Loaded Commands: " + str(processingCommands))
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = (HOST, PORT)
