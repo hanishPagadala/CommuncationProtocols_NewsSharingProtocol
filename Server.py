@@ -135,6 +135,8 @@ def updateUserCommands():
     with open(processingCSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
         for command in processingCommands:
+            if command == "Quit":
+                continue
             writer.writerow([command])
 
 
@@ -150,7 +152,9 @@ def getDatafromClient(connection, client_address):
             request = data.decode().strip()
             if not request:
                 continue
-        
+
+            message = ""
+
             command = request.split()[0]
             if command == "Register":
                 parts = request.split()
@@ -276,16 +280,15 @@ def getDatafromClient(connection, client_address):
                 message = "INVALID COMMAND"
 
             connection.sendall(message.encode())
-            #processingCommands.remove(request)
-            #updateUserCommands()
 
     finally:
         connection.close()
 
-
 def getUDPDataFromClient():
     while True:
         data, addr = udpSock.recvfrom(4096)
+        request = data.decode()
+        parts = request.split()
         request = data.decode()
         parts = request.split()
         if not parts:
@@ -301,7 +304,11 @@ def getUDPDataFromClient():
         
 
         # publish function
-        # change it to command.lower()
+        # change it to command.lower() maybe?
+
+        processingCommands.append(str(request))
+        updateUserCommands()
+
         if command == "Publish":
             if len(parts) < 6:
                 udpSock.sendto("PUBLISH-DENIED INVALID-FORMAT".encode(), addr)
@@ -406,7 +413,8 @@ def getUDPDataFromClient():
 
             print(f"UDP address registered for {name}: {addr}")
 
-        
+        #processingCommands.remove(request)
+        updateUserCommands()
 
 with open(CSV_FILE, mode='r', newline='') as fille:
     reader = csv.reader(fille)
@@ -472,6 +480,8 @@ for command in processingCommands:
     # if parts[len(parts) - 1] == "TCP":
     #     processingCommands.remove(command)
     #     getDatafromClient(commandToRun.encode(), ("", ""))
+
+print("Loaded Commands: " + str(processingCommands))
 
 print(processingCommands)
 for command in processingCommands:
