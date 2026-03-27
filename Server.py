@@ -4,12 +4,37 @@ import threading
 import sys
 import csv #hello
 
-
-HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
-PORT = 10000
-
-UDPHOST = "0.0.0.0"
-UDPPORT = 8888
+SERVER_SELECTION = 1
+if SERVER_SELECTION == 1:
+    HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
+    CLIENTPORT = 10000
+    SERVERPORT = 10003
+    UDPHOST = '0.0.0.0' 
+    UDPPORT = 8888
+    client_server_address = (HOST, CLIENTPORT)
+    server_server_address = (HOST, SERVERPORT)
+    otherHOST = 'localhost'
+    otherClientPORT = 10001
+    otherServerPORT = 10002
+    otherClientServerAddress = (otherHOST, otherClientPORT)
+    otherServerServerAddress = (otherHOST, otherServerPORT)
+    otherUDPHOST = '0.0.0.0'
+    otherUDPPORT = 8889
+if SERVER_SELECTION == 2:
+    HOST = 'localhost' 
+    CLIENTPORT = 10001
+    SERVERPORT = 10002
+    client_server_address = (HOST, CLIENTPORT)
+    server_server_address = (HOST, SERVERPORT)
+    UDPHOST = '0.0.0.0'
+    UDPPORT = 8889
+    otherHOST = 'localhost'
+    otherClientPORT = 10000
+    otherServerPORT = 10003
+    otherClientServerAddress = (otherHOST, otherClientPORT)
+    otherServerServerAddress = (otherHOST, otherServerPORT)
+    otherUDPHOST = '0.0.0.0'
+    otherUDPPORT = 8888
 
 try:
     udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -34,6 +59,41 @@ numClients = 0
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
 userSubjects_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'userSubjects.csv')
+
+def handleSendServertoServer (message):
+    #open socket with other server, send the publish/comment command to other server
+    print("Sending to other server:", message)
+    sockToServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        global otherServerServerAddress
+        sockToServer.connect(otherServerServerAddress)
+        sockToServer.sendall(message.encode())
+
+        received = ""
+        data = sockToServer.recv(4096)
+        if data:
+            received += data.decode()
+            print(f"Received from other server: {received}")
+        else:
+            print("No response received from other server.")
+
+        sockToServer.close()
+    except Exception as e:
+        print(f"Error connecting to other server at {otherServerServerAddress}: {e}")
+
+def handleReceiveServertoServer(connection):
+    try:
+        data = connection.recv(4096)
+        if data:
+            message = data.decode()
+            print(f"Received from other server: {message}")
+            connection.sendall(f"ACK: Received '{message}'".encode())
+        else:
+            print("No data received from other server.")
+    except Exception as e:
+        print(f"Error receiving data from other server: {e}")
+    finally:
+        connection.close()
 
 
 def normalize_subject_row(row):
@@ -111,9 +171,9 @@ def getDatafromClient(connection, client_address):
                             if any((client[0] == client_name) for client in RegisteredClients): #change and for multi client testing, back to or for single client per IP
                                 message = f"REGISTER DENIED: {request_id} ALREADY REGISTERED"
                                 global numClients
-                                numClients += 1
+                                numClients += 1 #Justin Testing, remove when done
                             else:
-                                
+                                #testing simple referring
                                 if numClients < 1:
                                     RegisteredClients.append((client_name, client_IP, client_UDP_Port))
                                     #Justin Testing
@@ -420,26 +480,49 @@ for command in processingCommands:
         continue
     
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_address = (HOST, PORT)
-print(f'starting up on {HOST} port {PORT}', file=sys.stderr)
-sock.bind(server_address)
+clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+otherServerServerAddress = (otherHOST, otherServerPORT)
+print(f'starting up on {HOST} port {CLIENTPORT}', file=sys.stderr)
 
-# Server starts listening on the port
-sock.listen(5)
+clientSock.bind(client_server_address)
+serverSock.bind(server_server_address)
+
+# # Server starts listening on the port
+clientSock.listen(5)
+serverSock.listen(5)
 
 udpConnectionThread = threading.Thread(target=getUDPDataFromClient)
 udpConnectionThread.daemon = True
 udpConnectionThread.start()
-
+messageToServer = "Hello from server"
 print('Server Running', file=sys.stderr, flush=True)
 while True:
     # Wait for a connection
-    connection, client_address = sock.accept()
+    
+    if SERVER_SELECTION == 1:
+        serverToServerThread = threading.Thread(
+                target=handleSendServertoServer,
+                args=(messageToServer,)
+            )
+        serverToServerThread.daemon = True
+        serverToServerThread.start()
+        serverToServerThread.join()
 
+    if SERVER_SELECTION == 2:
+        connection, client_address = serverSock.accept()
+        serverToServerThread = threading.Thread(
+                target=handleReceiveServertoServer,
+                args=(connection,)
+            )
+        serverToServerThread.daemon = True
+        serverToServerThread.start()
+        serverToServerThread.join()
+
+    clientConnection, client_address = clientSock.accept()
     handleClientThread = threading.Thread(
         target=getDatafromClient,
-        args=(connection, client_address,)
+        args=(clientConnection, client_address,)
     )
 
     handleClientThread.daemon = True

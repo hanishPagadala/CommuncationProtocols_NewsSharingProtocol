@@ -4,6 +4,8 @@ import time
 import errno
 import threading
 
+#function for client selecting which server to send to? or too complicated
+
 udpHOST = "0.0.0.0"
 PORTNo = 8889
 
