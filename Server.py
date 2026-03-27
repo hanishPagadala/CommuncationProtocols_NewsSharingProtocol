@@ -18,7 +18,7 @@ udpThread = None
 
 # Server Selection
 
-SERVER_SELECTION = 1
+SERVER_SELECTION = 2
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -218,7 +218,7 @@ def TCPRegister(request):
                         clientSubjects.append([client_name])
                         print("clientSubjects", clientSubjects)
                         message = f"REGISTERED {request_id}"
-                        writeToCSV()When Registering
+                        writeToCSV()
                         numClients += 1
                     else:
                         message = "REFER " + request_id + " " + otherHOST + " " + str(otherServerClientPORT)

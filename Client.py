@@ -7,7 +7,7 @@ import threading
 #function for client selecting which server to send to? or too complicated
 
 udpHOST = "0.0.0.0"
-PORTNo = 8886
+PORTNo = 8884
 
 serverAddress = "localhost" #'132.205.94.193'
 udpServerPort = 8888
