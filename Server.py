@@ -154,7 +154,6 @@ def getDatafromClient(connection, client_address):
                 continue
 
             message = ""
-
             command = request.split()[0]
             if command == "Register":
                 parts = request.split()
