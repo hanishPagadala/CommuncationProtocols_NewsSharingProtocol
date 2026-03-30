@@ -7,7 +7,7 @@ import threading
 #function for client selecting which server to send to? or too complicated
 
 udpHOST = "0.0.0.0"
-PORTNo = 8889
+PORTNo = 8886
 
 serverAddress = "localhost" #'132.205.94.193'
 udpServerPort = 8888
@@ -21,6 +21,7 @@ udpServerPort = 8888
 Request = 0
 userName = "Lebron"
 registered = False
+refered = False
 clientIP = socket.gethostbyname(socket.gethostname())
 server_address = (serverAddress, 10000)
 #server_address = ('132.205.46.76', 10000)
@@ -107,16 +108,18 @@ def sendUDPMessage(sock, message, port):
 def sendMessage(message):
     #TCP send and recieve, closes after each message
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    reply = ""
+    global server_address
+
     try:
         sock.connect(server_address)
         sock.settimeout(3.0)
 
         sock.sendall(message.encode())
-        global registered
-        global Request
+        global registered, Request, refered
 
-        recieved = ""
         data = sock.recv(4096)
+        recieved = ""
         if data:
             recieved += data.decode()
             print("Received:", recieved)
@@ -127,10 +130,16 @@ def sendMessage(message):
                 startUDP(PORTNo, "Listener", "")
             elif reply[0] == "REGISTERED":
                 registered = True
+                refered = False
             elif reply[0] == "UNREGISTERED":
                 registered = False
                 Request = 0
-            
+            elif reply[0] == "REFER":
+                print("You are being referred to another server.")
+                registered = False
+                refered = True
+                Request = 0
+
             if (len(reply) > 4) and(reply[3] == "ALREADY") and (reply[4] == "REGISTERED"):
                 print("Registration denied: You are already registered. Please update your information or unregister first.")
                 registered = True
@@ -142,6 +151,11 @@ def sendMessage(message):
 
     sock.close()
     time.sleep(0.2)
+    if (refered) and (len(reply) > 3):
+        newMessage = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo)
+        server_address = (reply[2], int(reply[3]))
+        sendMessage(newMessage)
+        refered = False
 
 try:
     startUDP(PORTNo, "Listener", "")

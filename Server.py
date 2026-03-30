@@ -6,11 +6,12 @@ import csv #hello
 
 # Arrays and Global Variables
 
-clientThreads = []
+
 RegisteredClients = []
 clientSubjects = []
-processingCommands = []
 availablePublications = []
+clientThreads = []
+processingCommands = []
 
 numClients = 0
 udpThread = None
@@ -24,30 +25,29 @@ if SERVER_SELECTION == 1:
     SERVERPORT = 10003
     UDPHOST = '0.0.0.0' 
     UDPPORT = 8888
-    client_server_address = (HOST, CLIENTPORT)
-    server_server_address = (HOST, SERVERPORT)
+
     otherHOST = 'localhost'
-    otherClientPORT = 10001
-    otherServerPORT = 10002
-    otherClientServerAddress = (otherHOST, otherClientPORT)
-    otherServerServerAddress = (otherHOST, otherServerPORT)
+    otherServerClientPORT = 10001
+    otherServerServerPORT = 10002
     otherUDPHOST = '0.0.0.0'
     otherUDPPORT = 8889
 if SERVER_SELECTION == 2:
     HOST = 'localhost' 
     CLIENTPORT = 10001
     SERVERPORT = 10002
-    client_server_address = (HOST, CLIENTPORT)
-    server_server_address = (HOST, SERVERPORT)
     UDPHOST = '0.0.0.0'
     UDPPORT = 8889
+
     otherHOST = 'localhost'
-    otherClientPORT = 10000
-    otherServerPORT = 10003
-    otherClientServerAddress = (otherHOST, otherClientPORT)
-    otherServerServerAddress = (otherHOST, otherServerPORT)
+    otherServerClientPORT = 10000
+    otherServerServerPORT = 10003
     otherUDPHOST = '0.0.0.0'
     otherUDPPORT = 8888
+
+client_server_address = (HOST, CLIENTPORT)
+server_server_address = (HOST, SERVERPORT)
+otherClientServerAddress = (otherHOST, otherServerClientPORT)
+otherServerServerAddress = (otherHOST, otherServerServerPORT)    
 
 # Set up UDP socket for receiving publish/comment commands from clients
 
@@ -175,11 +175,16 @@ def readCSVInit():
                 break
             commandToRun += parts[counter] + " "
             counter += 1
-        # if parts[len(parts) - 1] == "TCP":
-        #     processingCommands.remove(command)
-        #     getDatafromClient(commandToRun.encode(), ("", ""))
 
-    print(processingCommands)
+    for command in processingCommands:
+        parts = command.split()
+        if len(parts) < 2:
+            continue
+        commandType = parts[0]
+        if commandType == "Publish":
+            UDPPublish(command, None)
+        elif commandType == "Publish-Comment":
+            UDPComment(command, None)
 
 # ================= End General Helper Functions =================
 
@@ -213,10 +218,10 @@ def TCPRegister(request):
                         clientSubjects.append([client_name])
                         print("clientSubjects", clientSubjects)
                         message = f"REGISTERED {request_id}"
-                        writeToCSV()
+                        writeToCSV()When Registering
                         numClients += 1
                     else:
-                        message = "REFER " + request_id + " " 
+                        message = "REFER " + request_id + " " + otherHOST + " " + str(otherServerClientPORT)
     return message
 
 def TCPUnregister(request):
@@ -341,6 +346,16 @@ def UDPPublish(request, addr):
     text = text[5:]                 # Remove "T3xt:" prefix
 
     sender_name = str(name).lower()
+
+    if addr == None:
+        if is_registered_client(sender_name):
+            for client in RegisteredClients:
+                if client[0] == sender_name:
+                    addr = (client[1], int(client[2]))
+                    break
+        else:
+            print(f"Cannot process command: sender {sender_name} not registered and no address provided.")
+            return
 
     if not any((client[0] == sender_name) for client in RegisteredClients):
         message = f"PUBLISH-DENIED {rq} UserNotRegistered "
@@ -525,7 +540,7 @@ def handleReceiveServertoServer(connection):
 # Server Code
 clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-otherServerServerAddress = (otherHOST, otherServerPORT)
+otherServerServerAddress = (otherHOST, otherServerServerPORT)
 print(f'starting up on {HOST} port {CLIENTPORT}', file=sys.stderr)
 
 clientSock.bind(client_server_address)
