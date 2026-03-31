@@ -17,7 +17,7 @@ udpThread = None
 
 # Server Selection
 
-SERVER_SELECTION = 1
+SERVER_SELECTION = 2
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -54,12 +54,13 @@ if SERVER_SELECTION == 2:
 try:
     udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 except socket.error as msg:
-    print('Failed to create socket. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+    print('Failed to create socket. Error: ' + str(msg))
     sys.exit()
 try:
+    udpSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     udpSock.bind((UDPHOST, UDPPORT))
 except socket.error as msg:
-    print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+    print('Bind failed. Error: ' + str(msg))
     sys.exit()
 
 # CSV File Paths
@@ -213,6 +214,7 @@ def TCPRegister(request):
                         clientSubjects.append([client_name])
                         print("clientSubjects", clientSubjects)
                         message = f"REGISTERED {request_id}"
+                        handleSendServertoServer(message)
                         writeToCSV()
                         numClients += 1
                     else:
@@ -501,9 +503,11 @@ def handleSendServertoServer (message):
         else:
             print("No response received from other server.")
 
-        sockToServer.close()
     except Exception as e:
         print(f"Error connecting to other server at {otherServerServerAddress}: {e}")
+    finally:
+        sockToServer.close()
+
 
 def handleReceiveServertoServer(connection):
     try:
@@ -518,6 +522,12 @@ def handleReceiveServertoServer(connection):
         print(f"Error receiving data from other server: {e}")
     finally:
         connection.close()
+
+def listenServertoServer():
+    global serverSock
+    while True:
+        connection, server2_address = serverSock.accept()
+        handleReceiveServertoServer(connection)
 
 # ================= End Server-to-Server Communication Functions =================
 
@@ -545,28 +555,16 @@ print('Server Running', file=sys.stderr, flush=True)
 # Read from CSV to initialize RegisteredClients and clientSubjects, and clear CSV for new session
 readCSVInit()
 
+serverToServerThread = threading.Thread(
+    target=listenServertoServer,
+    args=()
+)
+serverToServerThread.daemon = True
+serverToServerThread.start()
+
 while True:
-    # Wait for a connection
+    #Wait for a connection
     
-    # if SERVER_SELECTION == 1:
-    #     serverToServerThread = threading.Thread(
-    #             target=handleSendServertoServer,
-    #             args=(messageToServer,)
-    #         )
-    #     serverToServerThread.daemon = True
-    #     serverToServerThread.start()
-    #     serverToServerThread.join()
-
-    # if SERVER_SELECTION == 2:
-    #     connection, client_address = serverSock.accept()
-    #     serverToServerThread = threading.Thread(
-    #             target=handleReceiveServertoServer,
-    #             args=(connection,)
-    #         )
-    #     serverToServerThread.daemon = True
-    #     serverToServerThread.start()
-    #     serverToServerThread.join()
-
     clientConnection, client_address = clientSock.accept()
     handleClientThread = threading.Thread(
         target=getDatafromClient,
