@@ -3,14 +3,17 @@ import sys
 import time
 import errno
 import threading
+import random
 
 #function for client selecting which server to send to? or too complicated
-
+randomInt = random.randint(1, 2)
 udpHOST = "0.0.0.0"
 PORTNo = 8889
 
 serverAddress = "localhost" #'132.205.94.193'
-udpServerPort = 8888
+udpServerPort = 8888 if randomInt == 1 else 8889
+
+
 
 # try:
 #     udpSock.bind((udpHOST, PORTNo))
@@ -23,7 +26,7 @@ userName = "Lebron"
 registered = False
 refered = False
 clientIP = socket.gethostbyname(socket.gethostname())
-server_address = (serverAddress, 10000)
+server_address = (serverAddress, 10000) if randomInt == 1 else (serverAddress, 10001)
 #server_address = ('132.205.46.76', 10000)
 
 udpSock = None

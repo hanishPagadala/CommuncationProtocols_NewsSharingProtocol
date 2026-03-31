@@ -33,6 +33,7 @@ if SERVER_SELECTION == 1:
     otherServerServerAddress = (otherHOST, otherServerPORT)
     otherUDPHOST = '0.0.0.0'
     otherUDPPORT = 8889
+    RegisteredClientsCSV = 'registeredClient.csv'
 if SERVER_SELECTION == 2:
     HOST = 'localhost' 
     CLIENTPORT = 10001
@@ -48,6 +49,7 @@ if SERVER_SELECTION == 2:
     otherServerServerAddress = (otherHOST, otherServerPORT)
     otherUDPHOST = '0.0.0.0'
     otherUDPPORT = 8888
+    RegisteredClientsCSV = 'registeredClient2.csv'
 
 # Set up UDP socket for receiving publish/comment commands from clients
 
@@ -65,7 +67,7 @@ except socket.error as msg:
 
 # CSV File Paths
 
-CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registeredClient.csv')
+CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), RegisteredClientsCSV)
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
 userSubjects_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'userSubjects.csv')
 
