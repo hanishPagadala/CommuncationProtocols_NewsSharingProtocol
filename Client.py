@@ -168,22 +168,6 @@ def sendMessage(message):
         sendMessage(newMessage)
         refered = False
 
-def sendUDPMessage(message, local_port):
-    # Regular send and recieve UDP Messages, closes after each message
-    udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        udpSock.settimeout(3.0)
-        udpSock.sendto(message.encode(), (serverAddress, udpServerPort))
-
-        try:
-            data = udpSock.recvfrom(4096)
-            reply = data[0].decode()
-            addr = data[1]
-            print("Received:", reply, "from", addr)
-        except socket.timeout:
-            print("No UDP acknowledgement received from server")
-    finally:
-        udpSock.close()
 
 try:
     startUDP(PORTNo, "Listener", "")
