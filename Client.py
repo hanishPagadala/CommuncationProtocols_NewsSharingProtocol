@@ -7,7 +7,7 @@ import threading
 #function for client selecting which server to send to? or too complicated
 
 udpHOST = "0.0.0.0"
-PORTNo = 8884
+PORTNo = 8886
 
 serverAddress = "localhost" #'132.205.94.193'
 udpServerPort = 8888
@@ -26,13 +26,13 @@ clientIP = socket.gethostbyname(socket.gethostname())
 server_address = (serverAddress, 10000)
 #server_address = ('132.205.46.76', 10000)
 
-udpListenerSock = None
-udpListenerThread = None
-udpListenerStopEvent = threading.Event()
+udpSock = None
+udpThread = None
+udpStopEvent = threading.Event()
 
 
 def udpListenerLoop(sock):
-    while not udpListenerStopEvent.is_set():
+    while not udpStopEvent.is_set():
         try:
             data, addr = sock.recvfrom(4096)
         except socket.timeout:
@@ -46,41 +46,64 @@ def udpListenerLoop(sock):
         reply = data.decode(errors="replace")
         print(f"\n[UDP] {reply} from {addr}")
 
+def stopUDP():
+    global udpSock
+    global udpThread
 
-def stopUDPListener():
-    global udpListenerSock
-    global udpListenerThread
+    udpStopEvent.set()
 
-    udpListenerStopEvent.set()
-
-    if udpListenerSock is not None:
+    if udpSock is not None:
         try:
-            udpListenerSock.close()
+            udpSock.close()
         except OSError:
             pass
-        udpListenerSock = None
+        udpSock = None
 
-    if udpListenerThread is not None and udpListenerThread.is_alive():
-        udpListenerThread.join(timeout=1.5)
-    udpListenerThread = None
+    current = threading.current_thread()
+    if udpThread is not None and udpThread.is_alive() and udpThread is not current:
+        udpThread.join(timeout=0.05)
+    udpThread = None
 
+def startUDP(port, mode: str, message: str):
+    if not mode:
+        mode = "Listener"
 
-def startUDPListener(port):
-    global udpListenerSock
-    global udpListenerThread
+    global udpSock
+    global udpThread
 
-    stopUDPListener()       # If there is already a present one, cut it off (update command)
-    udpListenerStopEvent.clear()
+    stopUDP()       # If there is already a present one, cut it off (update command)
+    udpStopEvent.clear()
 
-    listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.bind((udpHOST, int(port)))
-    listener.settimeout(1.0)
+    time.sleep(0.1) # Give the previous thread a moment to close
 
-    udpListenerSock = listener
-    udpListenerThread = threading.Thread(target=udpListenerLoop, args=(listener,), daemon=True)
-    udpListenerThread.start()
-    print(f"UDP listener started on {udpHOST}:{port}")
+    udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udpSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    udpSock.bind((udpHOST, int(port)))
+    udpSock.settimeout(1.0)
+
+    if mode == "Listener":
+        udpThread = threading.Thread(target = udpListenerLoop, args=(udpSock,), daemon=True)
+        udpThread.start()
+    else:
+        udpThread = threading.Thread(target = sendUDPMessage, args=(udpSock, message, int(port)), daemon=True)
+        udpThread.start()
+        
+
+def sendUDPMessage(sock, message, port):
+    # Regular send and recieve UDP Messages, closes after each message
+    try:
+        sock.sendto(message.encode(), (serverAddress, udpServerPort))
+
+        try:
+            data = sock.recvfrom(4096)
+            reply = data[0].decode()
+            addr = data[1]
+            print("Received:", reply, "from", addr)
+        except socket.timeout:
+            print("No UDP acknowledgement received from server")
+    finally:
+        stopUDP()
+        startUDP(port, "Listener", "")
 
 def sendMessage(message):
     #TCP send and recieve, closes after each message
@@ -104,7 +127,7 @@ def sendMessage(message):
             if reply[0] == "UPDATE-CONFIRMED":
                 global PORTNo
                 PORTNo = int(reply[4])
-                startUDPListener(PORTNo)
+                startUDP(PORTNo, "Listener", "")
             elif reply[0] == "REGISTERED":
                 registered = True
                 refered = False
@@ -134,25 +157,8 @@ def sendMessage(message):
         sendMessage(newMessage)
         refered = False
 
-def sendUDPMessage(message, local_port):
-    # Regular send and recieve UDP Messages, closes after each message
-    udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        udpSock.settimeout(3.0)
-        udpSock.sendto(message.encode(), (serverAddress, udpServerPort))
-
-        try:
-            data = udpSock.recvfrom(4096)
-            reply = data[0].decode()
-            addr = data[1]
-            print("Received:", reply, "from", addr)
-        except socket.timeout:
-            print("No UDP acknowledgement received from server")
-    finally:
-        udpSock.close()
-
 try:
-    startUDPListener(PORTNo)
+    startUDP(PORTNo, "Listener", "")
     while True:
         time.sleep(0.05) 
         message = ""
@@ -238,13 +244,13 @@ try:
             tcpThread.start()
             tcpThread.join()
         elif messageType == "UDP":
-            udpThread = threading.Thread(target=sendUDPMessage, args=(message, PORTNo, )) 
-            udpThread.start()
-            udpThread.join()
+            startUDP(PORTNo, "Sender", message)
+            # udpThread = threading.Thread(target=sendUDPMessage, args=(message, PORTNo, )) 
+            # udpThread.start()
+            # udpThread.join()
     
         if userAction == "quit":
             break
         Request += 1
 finally:
-    stopUDPListener()
-    time.sleep(0.05)
+    stopUDP()
