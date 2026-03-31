@@ -328,7 +328,7 @@ def TCPQuit(request):
 
 def UDPPublish(request, addr):
     parts = request.split()
-
+    handleSendServertoServer(request)
     if len(parts) < 6:
         udpSock.sendto("PUBLISH-DENIED INVALID-FORMAT".encode(), addr)
     rq = parts[1]
@@ -384,7 +384,7 @@ def UDPPublish(request, addr):
 
 def UDPComment(request, addr):
     parts = request.split()
-
+    handleSendServertoServer(request)
     rq = parts[1]
     name = str(parts[2]).lower()
 
