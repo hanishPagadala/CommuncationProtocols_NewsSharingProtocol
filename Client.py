@@ -4,11 +4,13 @@ import time
 import errno
 import threading
 import random
+import tkinter as tk
+from tkinter import scrolledtext, simpledialog, messagebox
 
 #function for client selecting which server to send to? or too complicated
 randomInt = random.randint(1, 2)
 udpHOST = "0.0.0.0"
-PORTNo = 8889
+PORTNo = 9999
 
 serverAddress = "localhost" #'132.205.94.193'
 udpServerPort = 8888 if randomInt == 1 else 8889
@@ -32,6 +34,19 @@ server_address = (serverAddress, 10000) if randomInt == 1 else (serverAddress, 1
 udpSock = None
 udpThread = None
 udpStopEvent = threading.Event()
+
+root = None
+log_widget = None
+
+# print function for UI
+real_print = print
+
+def gui_print(*args):
+    message = " ".join(map(str, args))
+    if root and log_widget:
+        root.after(0, lambda: log_widget.insert(tk.END, message + "\n"))
+        root.after(0, lambda: log_widget.see(tk.END))
+    real_print(message)
 
 
 def udpListenerLoop(sock):
@@ -117,13 +132,15 @@ def sendMessage(message):
     reply = ""
     global server_address
 
+    global server_address
+    global registered, request, refered
+
     try:
         sock.connect(server_address)
         sock.settimeout(3.0)
 
         sock.sendall(message.encode())
-        global registered, Request, refered
-        global registered, Request, refered
+        
 
         data = sock.recv(4096)
         recieved = ""
@@ -172,100 +189,103 @@ def sendMessage(message):
         refered = False
 
 
-try:
-    startUDP(PORTNo, "Listener", "")
-    while True:
-        time.sleep(0.05) 
-        message = ""
-        messageType = ""
+# functions in the system
+def on_register():
+    global userName, Request
+    name = simpledialog.askstring("Input", "Enter your name:")
+    if name:
+        userName = name
+        message = f"Register {Request} {userName} {clientIP} {PORTNo}"
+        threading.Thread(target=sendMessage, args=(message,), daemon=True).start()
+        update_request()
 
-        if not registered:
-            userAction = input("Choose an Action: Register | Quit: ")
-            userAction = userAction.lower()
+def on_publish():
+    global Request
+    subj = simpledialog.askstring("Publish", "Enter subject:")
+    title = simpledialog.askstring("Publish", "Enter title:")
+    text = simpledialog.askstring("Publish", "Enter text:")
+    if subj and title and text:
+        message = f"Publish {Request} {userName} Subj3ct:{subj}* Titl3:{title}* T3xt: {text}"
+        startUDP(PORTNo, "Sender", message)
+        update_request()
 
-            if (userAction == "register"):
-                if registered:
-                    print("You are already registered. Please update your information or unregister first.")
-                    continue
-                else:
-                    userName = input("Enter your name: ")
-                    message = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo)
-                    messageType = "TCP"
-            elif userAction == "quit":
-                message = "Quit " + str(Request) + " " + userName
-                messageType = "TCP"
-        else:
-            userAction = input("Choose an Action: Update | Subjects | Publish | Comment | Unregister | Quit: ")
-            userAction = userAction.lower()
+def on_subjects():
+    global Request
+    subjects = simpledialog.askstring("Subjects", "Enter subjects (comma separated):")
+    if subjects:
+        message = f"Subjects {Request} {userName} {subjects}"
+        threading.Thread(target=sendMessage, args=(message,), daemon=True).start()
+        update_request()
 
-            if (userAction == "register"):
-                if registered:
-                    print("You are already registered. Please update your information or unregister first.")
-                    continue
-                else:
-                    userName = input("Enter your name: ")
-                    message = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo)
-                    messageType = "TCP"
+def on_unregister():
+    global Request
+    if messagebox.askyesno("Unregister", f"Do you want to unregister user: {userName}?"):
+        message = f"Unregister {Request} {userName}"
+        threading.Thread(target=sendMessage, args=(message,), daemon=True).start()
+        update_request()
 
-            elif userAction == "unregister":
+def update_request():
+    global Request
+    Request += 1
 
-                if not registered:
-                    print("You are not registered.")
-                    continue
-                else:
-                    message = "Unregister " + str(Request) + " " + userName
-                    messageType = "TCP"
+def on_update():
+    global Request
+    new_port = simpledialog.askstring("Update", "Enter new UDP port:")
+    if new_port:
+        message = f"Update {Request} {userName} {new_port}"
+        threading.Thread(target=sendMessage, args=(message,), daemon=True).start()
+        update_request()
 
-            elif userAction == "update":
+def update_status_label():
+    if registered:
+        status_label.config(text="Status: Registered", fg="green")
+    else:
+        status_label.config(text="Status: Unregistered", fg="red")
+    root.after(1000, update_status_label)
 
-                newPort = input("Enter your new UDP port: ")
-                message = "Update " + str(Request) + " " + userName + " " + newPort
-                messageType = "TCP"
+def on_quit():
+    if messagebox.askokcancel("Quit", "Do you want to quit and notify server?"):
+        msg = f"Quit {Request} {userName}"
+        threading.Thread(target=sendMessage, args=(msg,), daemon=True).start()
+        time.sleep(0.5)
+        root.destroy()
 
-            elif userAction == "subjects":
-                
-                listOfSubjects = input("Enter the subjects you want to subscribe to (comma separated separated): ")
-                message = "Subjects " + str(Request) + " " + userName + " " + listOfSubjects
-                messageType = "TCP"
 
-            elif userAction == "comment":
+# UI starter
+def setup_ui():
+    global root, log_widget, print
+    root = tk.Tk()
+    root.title("COEN 366 - Network Client")
+    root.geometry("800x600")
 
-                subject = input("Enter the subject you wish to publish: ")
-                subjectTitle = input("Enter the title of your publication: ")
-                subjectText = input("Enter your comment: ")
-                message = "Publish-Comment " + str(Request) + " " + userName + " " + subject + "* " + subjectTitle + "* " + subjectText
-                messageType = "UDP"
-
-            elif userAction == "quit":
-
-                message = "Quit " + str(Request) + " " + userName
-                messageType = "TCP"
-
-            elif userAction == "publish":
-
-                userSubject = input("Enter the subject you wish to publish: ")
-                subjectTitle = input("Enter the title of your publication: ")
-                subjectText = input("Enter the text of your publication: ")
-                message = "Publish " + str(Request) + " " + userName + " Subj3ct:"+ userSubject + "* Titl3:" + subjectTitle + "* T3xt: " + subjectText
-                messageType = "UDP"
-
-            else:
-
-                message = "Penis"
-                messageType = "TCP"
-        
-        if messageType == "TCP":
-            tcpThread = threading.Thread(target=sendMessage, args=(message, )) 
-            tcpThread.start()
-            tcpThread.join()
-        elif messageType == "UDP":
-            startUDP(PORTNo, "Sender", message)
-            # udpThread = threading.Thread(target=sendUDPMessage, args=(message, PORTNo, )) 
-            # udpThread.start()
-            # udpThread.join()
     
-        if userAction == "quit":
-            break
-        Request += 1
-finally:
-    stopUDP()
+    frame_left = tk.Frame(root, width=200, bg="#f0f0f0")
+    frame_left.pack(side="left", fill="y", padx=10, pady=10)
+
+    
+    log_widget = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=60)
+    log_widget.pack(side="right", expand=True, fill="both", padx=10, pady=10)
+
+    
+    import builtins
+    builtins.print = gui_print 
+
+   
+    tk.Label(frame_left, text="Actions", font=("Arial", 12, "bold")).pack(pady=10)
+    tk.Button(frame_left, text="Register", width=15, command=on_register).pack(pady=5)
+    tk.Button(frame_left, text="Subscribe", width=15, command=on_subjects).pack(pady=5)
+    tk.Button(frame_left, text="Update Port", width=15, command=lambda: threading.Thread(target=on_update).start()).pack(pady=5)
+    tk.Button(frame_left, text="Publish (UDP)", width=15, command=on_publish).pack(pady=5)
+    tk.Button(frame_left, text="Unregister", width=15, command=lambda: threading.Thread(target=lambda: sendMessage(f"Unregister {Request} {userName}")).start()).pack(pady=5)
+    
+    tk.Button(frame_left, text="Quit", width=15, fg="red", command=root.destroy).pack(side="bottom", pady=20)
+
+    
+    startUDP(PORTNo, "Listener", "")
+    
+    root.mainloop()
+    stopUDP() 
+
+if __name__ == "__main__":
+    setup_ui()
+

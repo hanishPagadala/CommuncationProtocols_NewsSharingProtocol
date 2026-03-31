@@ -17,7 +17,7 @@ udpThread = None
 
 # Server Selection
 
-SERVER_SELECTION = 2
+SERVER_SELECTION = 1
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
