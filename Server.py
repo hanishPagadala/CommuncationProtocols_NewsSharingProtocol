@@ -218,7 +218,7 @@ def TCPRegister(request):
                         clientSubjects.append([client_name])
                         print("clientSubjects", clientSubjects)
                         message = f"REGISTERED {request_id}"
-                        writeToCSV()When Registering
+                        writeToCSV()
                         numClients += 1
                     else:
                         message = "REFER " + request_id + " " + otherHOST + " " + str(otherServerClientPORT)
@@ -402,7 +402,7 @@ def UDPComment(request, addr):
     name = str(parts[2]).lower()
 
     importantInfo = " ".join(parts[3:])
-    importantParts = importantInfo.split("*")
+    importantParts = importantInfo.split("*S")
 
     subject = importantParts[0]
     title = importantParts[1][1:]  # Remove leading space from title
