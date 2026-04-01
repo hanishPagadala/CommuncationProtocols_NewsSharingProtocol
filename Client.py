@@ -8,10 +8,9 @@ import tkinter as tk
 from tkinter import scrolledtext, simpledialog, messagebox
 
 #function for client selecting which server to send to? or too complicated
-randomInt = random.randint(1, 2)
-print(randomInt)
+randomInt = 1 #random.randint(1, 2)
 udpHOST = "0.0.0.0"
-PORTNo = 9997
+PORTNo = 9996
 
 serverAddress = "localhost" #'132.205.94.193'
 udpServerPort = 8888 if randomInt == 1 else 8889
@@ -25,6 +24,7 @@ udpServerPort = 8888 if randomInt == 1 else 8889
 #     sys.exit()
 
 Request = 0
+userName = "Lebron"
 registered = False
 refered = False
 clientIP = socket.gethostbyname(socket.gethostname())
@@ -203,12 +203,11 @@ def on_publish():
 
 def on_comment():
     global Request
-    title = simpledialog.askstring("Comment", "Enter the title of the post to comment on:")
-    text = simpledialog.askstring("Comment", "Enter your comment:")
-    
-    if title and text:
-        message = f"Comment {Request} {userName} Titl3:{title}* T3xt: {text}"
-        
+    subj = simpledialog.askstring("Comment", "Enter subject:")
+    title = simpledialog.askstring("Comment", "Enter title:")
+    text = simpledialog.askstring("Comment", "Enter comment text:")
+    if subj and title and text:
+        message = f"Publish-Comment {Request} {userName} Subj3ct:{subj}* Titl3:{title}* Comm3nt: {text}"
         startUDP(PORTNo, "Sender", message)
         update_request()
 
@@ -283,7 +282,7 @@ def setup_ui():
     tk.Button(frame_left, text="Subscribe", width=15, command=on_subjects).pack(pady=5)
     tk.Button(frame_left, text="Update Port", width=15, command=on_update).pack(pady=5)
     tk.Button(frame_left, text="Publish (UDP)", width=15, command=on_publish).pack(pady=5)
-    tk.Button(frame_left, text="Comment (UDP)", width=15, command=on_comment).pack(pady=5)
+    tk.Button(frame_left, text="Comment", width=15, command=on_comment).pack(pady=5)
     tk.Button(frame_left, text="Unregister", width=15, command=on_unregister).pack(pady=5)
     
     tk.Button(frame_left, text="Quit", width=15, fg="red", command=on_quit).pack(side="bottom", pady=20)

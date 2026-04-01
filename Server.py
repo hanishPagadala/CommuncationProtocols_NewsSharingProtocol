@@ -19,7 +19,7 @@ referedLast = False
 
 # Server Selection
 
-SERVER_SELECTION = 1
+SERVER_SELECTION = 2
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -93,6 +93,12 @@ def normalize_subject_row(row):
 
 def is_registered_client(name):
     return any(client[0] == name for client in RegisteredClients)        
+
+def extract_marked_field(value, prefix):
+    cleaned = str(value).strip()
+    if cleaned.startswith(prefix):
+        return cleaned[len(prefix):].strip()
+    return cleaned
 
 def writeToCSV():
     with open(CSV_FILE, mode='w', newline='') as file:
@@ -217,7 +223,7 @@ def TCPRegister(request):
                         registeredOnOther = handleSendServertoServer(request, waitForAck=True) 
                     
                         if registeredOnOther:
-                            message = f"REGISTER DENIED: {request_id} ALREADY REGISTERED ON OTHER SERVER"
+                            message = f"REGISTER DENIED: {request_id} REGISTERED ON OTHER SERVER"
                         elif registeredOnOther == False:
                             RegisteredClients.append((client_name, client_IP, client_UDP_Port))
                             #Justin Testing
@@ -354,10 +360,9 @@ def UDPPublish(request, addr):
     importantInfo = " ".join(parts[3:])
     importantParts = importantInfo.split("*")
 
-    subject = importantParts[0][8:]          # Remove "Subj3ct:" prefix
-    title = importantParts[1][7:]            # Remove "Titl3:" prefix
-    text = " ".join(importantParts[2:])
-    text = text[5:]                 # Remove "T3xt:" prefix
+    subject = extract_marked_field(importantParts[0], "Subj3ct:")
+    title = extract_marked_field(importantParts[1], "Titl3:")
+    text = extract_marked_field(" ".join(importantParts[2:]), "T3xt:")
 
     sender_name = str(name).lower()
 
@@ -414,9 +419,9 @@ def UDPComment(request, addr):
     importantInfo = " ".join(parts[3:])
     importantParts = importantInfo.split("*")
 
-    subject = importantParts[0]
-    title = importantParts[1][1:]  # Remove leading space from title
-    text = " ".join(importantParts[2:])
+    subject = extract_marked_field(importantParts[0], "Subj3ct:")
+    title = extract_marked_field(importantParts[1], "Titl3:")
+    text = extract_marked_field(" ".join(importantParts[2:]), "Comm3nt:")
 
     if not any((client[0] == name) for client in RegisteredClients):
         if addr is not None:
@@ -441,6 +446,7 @@ def UDPComment(request, addr):
                             continue
                         
                         messageToSend = f"Comment {name} {subject} {title} {text}"
+                        print("Sending comment to: " + client_name)
                         udpSock.sendto(messageToSend.encode(), user_addr)                      
                     else:
                         continue
