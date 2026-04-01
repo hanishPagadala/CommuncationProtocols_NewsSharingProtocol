@@ -201,6 +201,17 @@ def on_publish():
         startUDP(PORTNo, "Sender", message)
         update_request()
 
+def on_comment():
+    global Request
+    title = simpledialog.askstring("Comment", "Enter the title of the post to comment on:")
+    text = simpledialog.askstring("Comment", "Enter your comment:")
+    
+    if title and text:
+        message = f"Comment {Request} {userName} Titl3:{title}* T3xt: {text}"
+        
+        startUDP(PORTNo, "Sender", message)
+        update_request()
+
 def on_subjects():
     global Request
     subjects = simpledialog.askstring("Subjects", "Enter subjects (comma separated):")
@@ -272,6 +283,7 @@ def setup_ui():
     tk.Button(frame_left, text="Subscribe", width=15, command=on_subjects).pack(pady=5)
     tk.Button(frame_left, text="Update Port", width=15, command=on_update).pack(pady=5)
     tk.Button(frame_left, text="Publish (UDP)", width=15, command=on_publish).pack(pady=5)
+    tk.Button(frame_left, text="Comment (UDP)", width=15, command=on_comment).pack(pady=5)
     tk.Button(frame_left, text="Unregister", width=15, command=on_unregister).pack(pady=5)
     
     tk.Button(frame_left, text="Quit", width=15, fg="red", command=on_quit).pack(side="bottom", pady=20)
