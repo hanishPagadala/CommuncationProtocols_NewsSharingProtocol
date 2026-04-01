@@ -17,7 +17,7 @@ udpThread = None
 
 # Server Selection
 
-SERVER_SELECTION = 1
+SERVER_SELECTION = 2
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -211,12 +211,12 @@ def TCPRegister(request):
                 else:
                     #testing simple referring
                     if numClients < 1:
+                        handleSendServertoServer(request) #send original request to other server (maybe has to be placed higher up so it's handled earlier)
                         RegisteredClients.append((client_name, client_IP, client_UDP_Port))
                         #Justin Testing
                         clientSubjects.append([client_name])
                         print("clientSubjects", clientSubjects)
                         message = f"REGISTERED {request_id}"
-                        handleSendServertoServer(message)
                         writeToCSV()
                         numClients += 1
                     else:
@@ -516,8 +516,21 @@ def handleReceiveServertoServer(connection):
         data = connection.recv(4096)
         if data:
             message = data.decode()
+            request = message.split()[0] #Justin testing for receiving specific message types
+            client = message.split()[2]
             print(f"Received from other server: {message}")
-            connection.sendall(f"ACK: Received '{message}'".encode())
+            outbound = ""
+            
+            if request == "Register":
+                if is_registered_client(client):
+                    outbound = f"Other server attempted to register already registered client: {client}"
+                    print(outbound)
+                else:
+                    outbound = f"New client '{client}', we good to register on other server"
+                    print(outbound)
+
+
+            connection.sendall(outbound.encode())
         else:
             print("No data received from other server.")
     except Exception as e:

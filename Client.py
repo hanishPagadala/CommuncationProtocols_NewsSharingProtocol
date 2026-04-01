@@ -10,7 +10,7 @@ from tkinter import scrolledtext, simpledialog, messagebox
 #function for client selecting which server to send to? or too complicated
 randomInt = random.randint(1, 2)
 udpHOST = "0.0.0.0"
-PORTNo = 9999
+PORTNo = 9998
 
 serverAddress = "localhost" #'132.205.94.193'
 udpServerPort = 8888 if randomInt == 1 else 8889
