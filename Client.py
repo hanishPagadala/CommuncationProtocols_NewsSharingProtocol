@@ -242,9 +242,15 @@ def update_status_label():
     if status_label is None:
         return
     if registered:
-        status_label.config(text="Status: Registered", fg="green")
+        status_label.config(
+            text=f"Status: Registered\nUser: {userName}\nIP: {clientIP}\nUDP Port: {PORTNo}",
+            fg="green",
+        )
     else:
-        status_label.config(text="Status: Unregistered", fg="red")
+        status_label.config(
+            text=f"Status: Unregistered\nUser: {userName}\nIP: {clientIP}\nUDP Port: {PORTNo}",
+            fg="red",
+        )
     root.after(1000, update_status_label)
 
 def on_quit():
