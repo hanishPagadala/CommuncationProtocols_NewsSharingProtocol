@@ -9,8 +9,9 @@ from tkinter import scrolledtext, simpledialog, messagebox
 
 #function for client selecting which server to send to? or too complicated
 randomInt = random.randint(1, 2)
+print(randomInt)
 udpHOST = "0.0.0.0"
-PORTNo = 9996
+PORTNo = 9997
 
 serverAddress = "localhost" #'132.205.94.193'
 udpServerPort = 8888 if randomInt == 1 else 8889
@@ -24,7 +25,6 @@ udpServerPort = 8888 if randomInt == 1 else 8889
 #     sys.exit()
 
 Request = 0
-userName = "Lebron"
 registered = False
 refered = False
 clientIP = socket.gethostbyname(socket.gethostname())

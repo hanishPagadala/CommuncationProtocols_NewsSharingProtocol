@@ -19,7 +19,7 @@ referedLast = False
 
 # Server Selection
 
-SERVER_SELECTION = 2
+SERVER_SELECTION = 1
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -213,14 +213,19 @@ def TCPRegister(request):
                 else:
                     #testing simple referring
                     if numClients < 1 and referedLast == False:
-                        handleSendServertoServer(request, waitForAck=True) #send original request to other server (maybe has to be placed higher up so it's handled earlier)
-                        RegisteredClients.append((client_name, client_IP, client_UDP_Port))
-                        #Justin Testing
-                        clientSubjects.append([client_name])
-                        message = f"REGISTERED {request_id}"
-                        writeToCSV()
-                        numClients += 1
-                        referedLast = True
+                        registeredOnOther = True
+                        registeredOnOther = handleSendServertoServer(request, waitForAck=True) 
+                    
+                        if registeredOnOther:
+                            message = f"REGISTER DENIED: {request_id} ALREADY REGISTERED ON OTHER SERVER"
+                        elif registeredOnOther == False:
+                            RegisteredClients.append((client_name, client_IP, client_UDP_Port))
+                            #Justin Testing
+                            clientSubjects.append([client_name])
+                            message = f"REGISTERED {request_id}"
+                            writeToCSV()
+                            numClients += 1
+                            referedLast = True
                     else:
                         message = "REFER " + request_id + " " + otherHOST + " " + str(otherClientPORT)
                         referedLast = False
@@ -524,6 +529,11 @@ def handleSendServertoServer (message, waitForAck : bool):
             data = sockToServer.recv(4096)
             if data:
                 received += data.decode()
+                print(f"Received from other server (IM IN handleSendServertoServer): {received}")
+                if received == "REGISTER-ACCEPT":
+                    return False
+                elif received == "REGISTER-DENY":
+                    return True
 
     except Exception as e:
         print(f"Error connecting to other server at {otherServerServerAddress}: {e}")
@@ -536,7 +546,7 @@ def handleReceiveServertoServer(connection):
         data = connection.recv(4096)
         if data:
             message = data.decode()
-            print(f"Server-to-Server: {message}")
+            print(f"Server-to-Server (IM IN handleReceiveServertoServer): {message}")
 
             parts = message.split()
             if not parts:
@@ -548,9 +558,9 @@ def handleReceiveServertoServer(connection):
 
             if request == "Register":
                 if is_registered_client(client):
-                    outbound = f"Other server attempted to register already registered client: {client}"
+                    outbound = "REGISTER-DENY"
                 else:
-                    outbound = f"New client '{client}', we good to register on other server"
+                    outbound = "REGISTER-ACCEPT"
                 connection.sendall(outbound.encode())
             elif request == "Publish":
                 UDPPublish(message, None)
