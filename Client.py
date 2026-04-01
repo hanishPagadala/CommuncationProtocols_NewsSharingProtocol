@@ -185,6 +185,9 @@ def sendMessage(message):
     if (refered) and (len(reply) > 3):
         newMessage = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo)
         server_address = (reply[2], int(reply[3]))
+
+        print(f"Attempting to register with new server at {server_address}...")
+
         sendMessage(newMessage)
         refered = False
 
@@ -274,7 +277,7 @@ def setup_ui():
     tk.Label(frame_left, text="Actions", font=("Arial", 12, "bold")).pack(pady=10)
     tk.Button(frame_left, text="Register", width=15, command=on_register).pack(pady=5)
     tk.Button(frame_left, text="Subscribe", width=15, command=on_subjects).pack(pady=5)
-    tk.Button(frame_left, text="Update Port", width=15, command=lambda: threading.Thread(target=on_update).start()).pack(pady=5)
+    tk.Button(frame_left, text="Update Port", width=15, command=on_update).pack(pady=5)
     tk.Button(frame_left, text="Publish (UDP)", width=15, command=on_publish).pack(pady=5)
     tk.Button(frame_left, text="Unregister", width=15, command=lambda: threading.Thread(target=lambda: sendMessage(f"Unregister {Request} {userName}")).start()).pack(pady=5)
     

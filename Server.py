@@ -15,9 +15,11 @@ availablePublications = []
 numClients = 0
 udpThread = None
 
+referedLast = False
+
 # Server Selection
 
-SERVER_SELECTION = 2
+SERVER_SELECTION = 1
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -191,6 +193,8 @@ def readCSVInit():
 def TCPRegister(request):
     parts = request.split()
     message = " "
+    global referedLast
+
     if len(parts) < 2:
         message = "UNABLE TO REGISTER: INVALID REQUEST FORMAT"
     else:
@@ -210,8 +214,8 @@ def TCPRegister(request):
                     numClients += 1 #Justin Testing, remove when done
                 else:
                     #testing simple referring
-                    if numClients < 1:
-                        handleSendServertoServer(request) #send original request to other server (maybe has to be placed higher up so it's handled earlier)
+                    if numClients < 1 and referedLast == False:
+                        handleSendServertoServer(request, waitForAck=True) #send original request to other server (maybe has to be placed higher up so it's handled earlier)
                         RegisteredClients.append((client_name, client_IP, client_UDP_Port))
                         #Justin Testing
                         clientSubjects.append([client_name])
@@ -219,8 +223,10 @@ def TCPRegister(request):
                         message = f"REGISTERED {request_id}"
                         writeToCSV()
                         numClients += 1
+                        referedLast = True
                     else:
-                        message = "REFER " + request_id + " " 
+                        message = "REFER " + request_id + " " + otherHOST + " " + str(otherClientPORT)
+                        referedLast = False
     return message
 
 def TCPUnregister(request):
@@ -330,7 +336,7 @@ def TCPQuit(request):
 
 def UDPPublish(request, addr):
     parts = request.split()
-    handleSendServertoServer(request)
+
     if len(parts) < 6:
         udpSock.sendto("PUBLISH-DENIED INVALID-FORMAT".encode(), addr)
     rq = parts[1]
@@ -386,7 +392,7 @@ def UDPPublish(request, addr):
 
 def UDPComment(request, addr):
     parts = request.split()
-    handleSendServertoServer(request)
+
     rq = parts[1]
     name = str(parts[2]).lower()
 
@@ -468,6 +474,9 @@ def getUDPDataFromClient():
     while True:
         data, addr = udpSock.recvfrom(4096)
         request = data.decode()
+
+        handleSendServertoServer(request, waitForAck=False) #send original request to other server        
+
         parts = request.split()
         if not parts:
             continue
@@ -488,7 +497,7 @@ def getUDPDataFromClient():
 
 # ================= Server-to-Server Communication Functions =================
 
-def handleSendServertoServer (message):
+def handleSendServertoServer (message, waitForAck : bool):
     #open socket with other server, send the publish/comment command to other server
     print("Sending to other server:", message)
     sockToServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -496,14 +505,14 @@ def handleSendServertoServer (message):
         global otherServerServerAddress
         sockToServer.connect(otherServerServerAddress)
         sockToServer.sendall(message.encode())
-
-        received = ""
-        data = sockToServer.recv(4096)
-        if data:
-            received += data.decode()
-            print(f"Received from other server: {received}")
-        else:
-            print("No response received from other server.")
+        if waitForAck == True:
+            received = ""
+            data = sockToServer.recv(4096)
+            if data:
+                received += data.decode()
+                print(f"Received from other server: {received}")
+            else:
+                print("No response received from other server.")
 
     except Exception as e:
         print(f"Error connecting to other server at {otherServerServerAddress}: {e}")
@@ -520,17 +529,17 @@ def handleReceiveServertoServer(connection):
             client = message.split()[2]
             print(f"Received from other server: {message}")
             outbound = ""
-            
+
             if request == "Register":
                 if is_registered_client(client):
                     outbound = f"Other server attempted to register already registered client: {client}"
-                    print(outbound)
                 else:
                     outbound = f"New client '{client}', we good to register on other server"
-                    print(outbound)
-
-
-            connection.sendall(outbound.encode())
+                connection.sendall(outbound.encode())
+            elif request == "Publish":
+                UDPPublish(message, None)
+            elif request == "Publish-Comment":
+                UDPComment(message, None)
         else:
             print("No data received from other server.")
     except Exception as e:
