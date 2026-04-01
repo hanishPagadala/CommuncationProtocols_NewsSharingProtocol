@@ -19,7 +19,7 @@ referedLast = False
 
 # Server Selection
 
-SERVER_SELECTION = 1
+SERVER_SELECTION = 2
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -184,8 +184,6 @@ def readCSVInit():
         #     processingCommands.remove(command)
         #     getDatafromClient(commandToRun.encode(), ("", ""))
 
-    print(processingCommands)
-
 # ================= End General Helper Functions =================
 
 # ================= TCP COMMANDS =================
@@ -219,7 +217,6 @@ def TCPRegister(request):
                         RegisteredClients.append((client_name, client_IP, client_UDP_Port))
                         #Justin Testing
                         clientSubjects.append([client_name])
-                        print("clientSubjects", clientSubjects)
                         message = f"REGISTERED {request_id}"
                         writeToCSV()
                         numClients += 1
@@ -231,13 +228,15 @@ def TCPRegister(request):
 
 def TCPUnregister(request):
     parts = request.split()
-    message = ""
+    if len(parts) < 3:
+        return "UNREGISTER-DENIED: INVALID REQUEST FORMAT"
+
+    message = "NOT REGISTERED"
 
     global numClients
 
     client_name = str(parts[2]).lower()
     for client in RegisteredClients:
-        print(client[0], client_name)
         if (client[0] == client_name):
             RegisteredClients.remove(client)
 
@@ -249,31 +248,33 @@ def TCPUnregister(request):
                 if subject[0] == client_name:
                     clientSubjects.remove(subject)
 
-            print("clientSubjects", clientSubjects)
-
             writeToCSV()
             break
-        else:
-            message = "NOT REGISTERED"
     return message
 
-def TCPUpdate(request):
+def TCPUpdate(request, client_ip):
     parts = request.split()
     message = ""
 
-    if len(parts) < 3:
+    if len(parts) < 4:
         message = "UPDATE-DENIED: INVALID REQUEST FORMAT"
     else:
         request_id = parts[1]
         client_name_raw = parts[2]
         client_name = str(client_name_raw).lower()
+        new_udp_port = str(parts[3])
+
+        try:
+            int(new_udp_port)
+        except ValueError:
+            return "UPDATE-DENIED " + request_id + " INVALID UDP PORT"
         
         for client in RegisteredClients:
             if (client[0] == client_name):
                 RegisteredClients.remove(client)
-                RegisteredClients.append((client_name, str(client_address[0]), str(parts[3]))) # Name, IP, UDP Socket
+                RegisteredClients.append((client_name, str(client_ip), new_udp_port)) # Name, IP, UDP Socket
 
-                message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + client_address[0] + " " + parts[3]
+                message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + str(client_ip) + " " + new_udp_port
                 writeToCSV()
                 break
             else:
@@ -284,6 +285,9 @@ def TCPSubjects(request):
     response = ''
     message = ""
     parts = request.split()
+    if len(parts) < 4:
+        return "SUBJECTS-DENIED INVALID REQUEST FORMAT"
+
     listOfSubjects = " ".join(parts[3:])
     splitSubjects = [item.strip() for item in listOfSubjects.split(",") if item.strip()]
     client_name = str(parts[2]).lower()
@@ -300,13 +304,15 @@ def TCPSubjects(request):
                 response += item + " "
     
     writeToCSV()
-    print(clientSubjects)
     message = "SUBJECTS UPDATED " + response
 
     return message
 
 def TCPQuit(request):
     parts = request.split()
+    if len(parts) < 3:
+        return
+
     client_name = str(parts[2]).lower()
 
     global numClients
@@ -321,14 +327,10 @@ def TCPQuit(request):
             for subject in clientSubjects:
                 if subject[0] == client_name:
                     clientSubjects.remove(subject)
-
-            print("clientSubjects", clientSubjects)
-
             writeToCSV()
 
             print("QUIT CONFIRMED")
-        else:
-            print("NOT REGISTERED SO CANNOT QUIT")
+            break
 
 # ================= END TCP COMMANDS =================
 
@@ -338,7 +340,9 @@ def UDPPublish(request, addr):
     parts = request.split()
 
     if len(parts) < 6:
-        udpSock.sendto("PUBLISH-DENIED INVALID-FORMAT".encode(), addr)
+        if addr is not None:
+            udpSock.sendto("PUBLISH-DENIED INVALID-FORMAT".encode(), addr)
+        return
     rq = parts[1]
     name = parts[2]
 
@@ -354,7 +358,9 @@ def UDPPublish(request, addr):
 
     if not any((client[0] == sender_name) for client in RegisteredClients):
         message = f"PUBLISH-DENIED {rq} UserNotRegistered "
-        udpSock.sendto(message.encode(), addr)
+        if addr is not None:
+            udpSock.sendto(message.encode(), addr)
+        return
 
     for client in RegisteredClients:
         if len(client) < 3:
@@ -365,11 +371,10 @@ def UDPPublish(request, addr):
         client_port = client[2]
         
         for userSubjects in clientSubjects:
-            if subject in userSubjects[1:]:
+            if userSubjects[0] == client_name and subject in userSubjects[1:]:
                 try:
                     user_addr = (client_ip, int(client_port))
                 except ValueError:
-                    print(f"Skipping invalid UDP port for client entry: {client}")
                     continue
                 
                 messageToSend = f"Message {name} {subject} {title} {text}"
@@ -382,16 +387,21 @@ def UDPPublish(request, addr):
                 udpSock.sendto(messageToSend.encode(), user_addr) 
                 continue                     
             else:
-                print(f"Skipping {client_name} for publish: not subscribed to {subject}")
                 continue
 
-    udpSock.sendto(
-        f"PUBLISH-OK {rq}".encode(),
-        addr
-    )
+    if addr is not None:
+        udpSock.sendto(
+            f"PUBLISH-OK {rq}".encode(),
+            addr
+        )
 
 def UDPComment(request, addr):
     parts = request.split()
+
+    if len(parts) < 6:
+        if addr is not None:
+            udpSock.sendto("COMMENT-DENIED INVALID-FORMAT".encode(), addr)
+        return
 
     rq = parts[1]
     name = str(parts[2]).lower()
@@ -402,6 +412,11 @@ def UDPComment(request, addr):
     subject = importantParts[0]
     title = importantParts[1][1:]  # Remove leading space from title
     text = " ".join(importantParts[2:])
+
+    if not any((client[0] == name) for client in RegisteredClients):
+        if addr is not None:
+            udpSock.sendto(f"COMMENT-DENIED {rq} UserNotRegistered".encode(), addr)
+        return
 
     for client in RegisteredClients:
         if len(client) < 3:
@@ -414,23 +429,22 @@ def UDPComment(request, addr):
         for publications in availablePublications:
             if (publications[0] == subject) and (publications[1] == title):  
                 for userSubjects in clientSubjects:
-                    if subject in userSubjects[1:]:
+                    if userSubjects[0] == client_name and subject in userSubjects[1:]:
                         try:
                             user_addr = (client_ip, int(client_port))
                         except ValueError:
-                            print(f"Skipping invalid UDP port for client entry: {client}")
                             continue
                         
                         messageToSend = f"Comment {name} {subject} {title} {text}"
                         udpSock.sendto(messageToSend.encode(), user_addr)                      
                     else:
-                        print(f"Skipping {client_name} for comment: not subscribed to {subject}")
                         continue
 
-    udpSock.sendto(
-        f"COMMENT-OK {rq}".encode(),
-        addr
-    )
+    if addr is not None:
+        udpSock.sendto(
+            f"COMMENT-OK {rq}".encode(),
+            addr
+        )
 
 # ================= END UDP COMMANDS =================
 
@@ -440,10 +454,9 @@ def getDatafromClient(connection, client_address):
         global numClients
         while True:
             data = connection.recv(4096)
-            if not data == "b''":
-                print(f'received {data}', file=sys.stderr)
             if not data:
                 break
+            print("TCP: " + data.decode())
 
             request = data.decode().strip()
             if not request:
@@ -456,7 +469,7 @@ def getDatafromClient(connection, client_address):
             elif command == "Unregister":
                 message = TCPUnregister(request)
             elif command == "Update":
-                message = TCPUpdate(request)
+                message = TCPUpdate(request, client_address[0])
             elif command == "Subjects":
                 message = TCPSubjects(request) 
             elif command == "Quit":
@@ -474,6 +487,7 @@ def getUDPDataFromClient():
     while True:
         data, addr = udpSock.recvfrom(4096)
         request = data.decode()
+        print(f"UDP: {request}")
 
         handleSendServertoServer(request, waitForAck=False) #send original request to other server        
 
@@ -499,20 +513,17 @@ def getUDPDataFromClient():
 
 def handleSendServertoServer (message, waitForAck : bool):
     #open socket with other server, send the publish/comment command to other server
-    print("Sending to other server:", message)
     sockToServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         global otherServerServerAddress
         sockToServer.connect(otherServerServerAddress)
         sockToServer.sendall(message.encode())
+        
         if waitForAck == True:
             received = ""
             data = sockToServer.recv(4096)
             if data:
                 received += data.decode()
-                print(f"Received from other server: {received}")
-            else:
-                print("No response received from other server.")
 
     except Exception as e:
         print(f"Error connecting to other server at {otherServerServerAddress}: {e}")
@@ -525,9 +536,14 @@ def handleReceiveServertoServer(connection):
         data = connection.recv(4096)
         if data:
             message = data.decode()
-            request = message.split()[0] #Justin testing for receiving specific message types
-            client = message.split()[2]
-            print(f"Received from other server: {message}")
+            print(f"Server-to-Server: {message}")
+
+            parts = message.split()
+            if not parts:
+                return
+
+            request = parts[0] #Justin testing for receiving specific message types
+            client = parts[2] if len(parts) > 2 else ""
             outbound = ""
 
             if request == "Register":
@@ -540,8 +556,6 @@ def handleReceiveServertoServer(connection):
                 UDPPublish(message, None)
             elif request == "Publish-Comment":
                 UDPComment(message, None)
-        else:
-            print("No data received from other server.")
     except Exception as e:
         print(f"Error receiving data from other server: {e}")
     finally:
@@ -560,7 +574,6 @@ def listenServertoServer():
 clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 otherServerServerAddress = (otherHOST, otherServerPORT)
-print(f'starting up on {HOST} port {CLIENTPORT}', file=sys.stderr)
 
 clientSock.bind(client_server_address)
 serverSock.bind(server_server_address)
@@ -574,7 +587,6 @@ udpConnectionThread.daemon = True
 udpConnectionThread.start()
 
 messageToServer = "Hello from server"
-print('Server Running', file=sys.stderr, flush=True)
 
 # Read from CSV to initialize RegisteredClients and clientSubjects, and clear CSV for new session
 readCSVInit()

@@ -10,7 +10,7 @@ from tkinter import scrolledtext, simpledialog, messagebox
 #function for client selecting which server to send to? or too complicated
 randomInt = random.randint(1, 2)
 udpHOST = "0.0.0.0"
-PORTNo = 9998
+PORTNo = 9996
 
 serverAddress = "localhost" #'132.205.94.193'
 udpServerPort = 8888 if randomInt == 1 else 8889
@@ -37,6 +37,7 @@ udpStopEvent = threading.Event()
 
 root = None
 log_widget = None
+status_label = None
 
 # print function for UI
 real_print = print
@@ -62,7 +63,7 @@ def udpListenerLoop(sock):
             continue
 
         reply = data.decode(errors="replace")
-        print(f"\n[UDP] {reply} from {addr}")
+        print(reply)
 
 def stopUDP():
     global udpSock
@@ -116,7 +117,7 @@ def sendUDPMessage(sock, message, port):
             data = sock.recvfrom(4096)
             reply = data[0].decode()
             addr = data[1]
-            print("Received:", reply, "from", addr)
+            print(reply)
         except socket.timeout:
             print("No UDP acknowledgement received from server")
     finally:
@@ -128,12 +129,7 @@ def sendMessage(message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     reply = ""
     global server_address
-
-    reply = ""
-    global server_address
-
-    global server_address
-    global registered, request, refered
+    global registered, refered, Request
 
     try:
         sock.connect(server_address)
@@ -144,10 +140,9 @@ def sendMessage(message):
 
         data = sock.recv(4096)
         recieved = ""
-        recieved = ""
         if data:
             recieved += data.decode()
-            print("Received:", recieved)
+            print(recieved)
             reply = recieved.split()
             if reply[0] == "UPDATE-CONFIRMED":
                 global PORTNo
@@ -159,12 +154,6 @@ def sendMessage(message):
             elif reply[0] == "UNREGISTERED":
                 registered = False
                 Request = 0
-            elif reply[0] == "REFER":
-                print("You are being referred to another server.")
-                registered = False
-                refered = True
-                Request = 0
-
             elif reply[0] == "REFER":
                 print("You are being referred to another server.")
                 registered = False
@@ -240,6 +229,8 @@ def on_update():
         update_request()
 
 def update_status_label():
+    if status_label is None:
+        return
     if registered:
         status_label.config(text="Status: Registered", fg="green")
     else:
@@ -256,7 +247,7 @@ def on_quit():
 
 # UI starter
 def setup_ui():
-    global root, log_widget, print
+    global root, log_widget, status_label, print
     root = tk.Tk()
     root.title("COEN 366 - Network Client")
     root.geometry("800x600")
@@ -275,16 +266,19 @@ def setup_ui():
 
    
     tk.Label(frame_left, text="Actions", font=("Arial", 12, "bold")).pack(pady=10)
+    status_label = tk.Label(frame_left, text="Status: Unregistered", fg="red")
+    status_label.pack(pady=5)
     tk.Button(frame_left, text="Register", width=15, command=on_register).pack(pady=5)
     tk.Button(frame_left, text="Subscribe", width=15, command=on_subjects).pack(pady=5)
     tk.Button(frame_left, text="Update Port", width=15, command=on_update).pack(pady=5)
     tk.Button(frame_left, text="Publish (UDP)", width=15, command=on_publish).pack(pady=5)
-    tk.Button(frame_left, text="Unregister", width=15, command=lambda: threading.Thread(target=lambda: sendMessage(f"Unregister {Request} {userName}")).start()).pack(pady=5)
+    tk.Button(frame_left, text="Unregister", width=15, command=on_unregister).pack(pady=5)
     
-    tk.Button(frame_left, text="Quit", width=15, fg="red", command=root.destroy).pack(side="bottom", pady=20)
+    tk.Button(frame_left, text="Quit", width=15, fg="red", command=on_quit).pack(side="bottom", pady=20)
 
     
     startUDP(PORTNo, "Listener", "")
+    update_status_label()
     
     root.mainloop()
     stopUDP() 
