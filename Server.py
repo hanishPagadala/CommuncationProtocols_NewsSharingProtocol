@@ -366,12 +366,22 @@ def UDPPublish(request, addr):
 
     sender_name = str(name).lower()
 
-    if not any((client[0] == sender_name) for client in RegisteredClients):
-        message = f"PUBLISH-DENIED {rq} UserNotRegistered "
-        if addr is not None:
-            udpSock.sendto(message.encode(), addr)
-        return
+    # If sender is not registered, deny the publish/comment and return
+    if (addr is not None) and (is_registered_client(sender_name) == False):
+        udpSock.sendto(f"PUBLISH-DENIED {rq} UserNotRegistered".encode(), addr)
+        return 
 
+    # if not any((client[0] == sender_name) for client in RegisteredClients):
+    #     message = f"PUBLISH-DENIED {rq} UserNotRegistered "
+    #     if addr is not None:
+    #         udpSock.sendto(message.encode(), addr)
+    #     return
+
+    if not any( (publication[0] == subject) and (publication[1] == title) for publication in availablePublications):
+        availablePublications.append((subject, title))
+    if len(availablePublications) < 1:
+        availablePublications.append((subject, title))
+    
     for client in RegisteredClients:
         if len(client) < 3:
             continue
@@ -388,11 +398,6 @@ def UDPPublish(request, addr):
                     continue
                 
                 messageToSend = f"Message {name} {subject} {title} {text}"
-
-                if not any( (publication[0] == subject) and (publication[1] == title) for publication in availablePublications):
-                    availablePublications.append((subject, title))
-                if len(availablePublications) < 1:
-                    availablePublications.append((subject, title))
 
                 udpSock.sendto(messageToSend.encode(), user_addr) 
                 continue                     
@@ -423,10 +428,15 @@ def UDPComment(request, addr):
     title = extract_marked_field(importantParts[1], "Titl3:")
     text = extract_marked_field(" ".join(importantParts[2:]), "Comm3nt:")
 
-    if not any((client[0] == name) for client in RegisteredClients):
-        if addr is not None:
-            udpSock.sendto(f"COMMENT-DENIED {rq} UserNotRegistered".encode(), addr)
-        return
+    # If sender is not registered, deny the publish/comment and return
+    if (addr is not None) and (is_registered_client(name.lower()) == False):
+        udpSock.sendto(f"COMMENT-DENIED {rq} UserNotRegistered".encode(), addr)
+    return 
+
+    # if not any((client[0] == name) for client in RegisteredClients):
+    #     if addr is not None:
+    #         udpSock.sendto(f"COMMENT-DENIED {rq} UserNotRegistered".encode(), addr)
+    #     return
 
     for client in RegisteredClients:
         if len(client) < 3:
@@ -472,8 +482,16 @@ def getDatafromClient(connection, client_address):
             request = data.decode().strip()
             if not request:
                 continue
-
+              
             message = ""
+           
+           # Make sure user is registered before allowing any commands other than register
+            if command != "Register":
+                is_registered_client(request.split()[2].lower()) #Hanish testing, remove when done
+                command = "Null"
+                message = "User Not Registered, Please Register Before Sending Other Commands"
+
+
             command = request.split()[0]
             if command == "Register":
                 message = TCPRegister(request)  
