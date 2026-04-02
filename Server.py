@@ -20,7 +20,7 @@ referedLast = False
 
 # Server Selection
 
-SERVER_SELECTION = 2
+SERVER_SELECTION = 1
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -161,7 +161,7 @@ def readCSVInit():
     with open(clientPasswordCSV, mode='r', newline='') as fille:
         reader = csv.reader(fille)
         for row in reader:
-            if len(row) < 2:
+            if (len(row) < 2) or (row[0].strip().lower() == 'client name'):
                 continue
             clientPasswords.append((row[0].strip().lower(), row[1].strip()))
 
@@ -256,8 +256,11 @@ def TCPRegister(request):
                                 message = f"REGISTERED {request_id}"
                                 writeToCSV()
 
+                                print(client_name, client_Pass)
+
                                 if not any(((clientPass[0] == client_name)) for clientPass in clientPasswords):
                                     clientPasswords.append((client_name, client_Pass))
+                                    handleSendServertoServer("UPDATE-PASSWORD "  +  client_name + " " + client_Pass, waitForAck=False)
                                     writeToPasswordCSV()
 
                                 numClients += 1
@@ -628,6 +631,11 @@ def handleReceiveServertoServer(connection):
                 UDPPublish(message, None)
             elif request == "Publish-Comment":
                 UDPComment(message, None)
+            elif request == "UPDATE-PASSWORD":
+                client_name = parts[1].lower()
+                new_password = parts[2]
+                clientPasswords.append((client_name, new_password))
+                writeToPasswordCSV()
     except Exception as e:
         print(f"Error receiving data from other server: {e}")
     finally:
