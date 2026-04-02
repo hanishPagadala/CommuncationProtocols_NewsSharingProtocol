@@ -248,7 +248,7 @@ def update_status_label():
         )
     else:
         status_label.config(
-            text=f"Status: Unregistered\nUser: {userName}\nIP: {clientIP}\nUDP Port: {PORTNo}",
+            text=f"Status: Unregistered\nUser: {"NA"}\nIP: {"NA"}\nUDP Port: {"NA"}",
             fg="red",
         )
     root.after(1000, update_status_label)

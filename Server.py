@@ -19,7 +19,7 @@ referedLast = False
 
 # Server Selection
 
-SERVER_SELECTION = 2
+SERVER_SELECTION = 1
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -484,28 +484,28 @@ def getDatafromClient(connection, client_address):
                 continue
               
             message = ""
-           
-           # Make sure user is registered before allowing any commands other than register
-            if command != "Register":
-                is_registered_client(request.split()[2].lower()) #Hanish testing, remove when done
-                command = "Null"
-                message = "User Not Registered, Please Register Before Sending Other Commands"
-
-
             command = request.split()[0]
+            userRegistered = False
+
+           # Make sure user is registered before allowing any commands other than register
+
             if command == "Register":
                 message = TCPRegister(request)  
-            elif command == "Unregister":
-                message = TCPUnregister(request)
-            elif command == "Update":
-                message = TCPUpdate(request, client_address[0])
-            elif command == "Subjects":
-                message = TCPSubjects(request) 
-            elif command == "Quit":
-                TCPQuit(request)
-                break
             else:
-                message = "INVALID COMMAND"
+                if is_registered_client(request.split()[2].lower()):
+                    if command == "Unregister":
+                        message = TCPUnregister(request)
+                    elif command == "Update":
+                        message = TCPUpdate(request, client_address[0])
+                    elif command == "Subjects":
+                        message = TCPSubjects(request) 
+                    elif command == "Quit":
+                        TCPQuit(request)
+                        break
+                    else:
+                        message = "INVALID COMMAND"
+                else:
+                    message = f"{command} - DENIED {request.split()[1]} User Not Registered."
 
             connection.sendall(message.encode())
 
@@ -528,10 +528,13 @@ def getUDPDataFromClient():
         processingCommands.append(request)
         updateUserCommands()
 
-        if command == "Publish":
-            UDPPublish(request, addr)
-        elif command == "Publish-Comment":
-            UDPComment(request, addr)
+        if is_registered_client(parts[2].lower()):
+            if command == "Publish":
+                UDPPublish(request, addr)
+            elif command == "Publish-Comment":
+                UDPComment(request, addr)
+        else:
+            udpSock.sendto(f"{command} - DENIED {parts[1]} User Not Registered".encode(), addr)
 
         processingCommands.remove(request)
         updateUserCommands()
