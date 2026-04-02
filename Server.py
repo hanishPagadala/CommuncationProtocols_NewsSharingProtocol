@@ -8,6 +8,7 @@ import csv #hello
 
 clientThreads = []
 RegisteredClients = []
+clientPasswords = []
 clientSubjects = []
 processingCommands = []
 availablePublications = []
@@ -19,7 +20,7 @@ referedLast = False
 
 # Server Selection
 
-SERVER_SELECTION = 1
+SERVER_SELECTION = 2
 if SERVER_SELECTION == 1:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -36,6 +37,7 @@ if SERVER_SELECTION == 1:
     otherUDPHOST = '0.0.0.0'
     otherUDPPORT = 8889
     RegisteredClientsCSV = 'registeredClient.csv'
+    clientPasswordCSV = 'clientPasswords.csv'
 if SERVER_SELECTION == 2:
     HOST = 'localhost' 
     CLIENTPORT = 10001
@@ -52,6 +54,7 @@ if SERVER_SELECTION == 2:
     otherUDPHOST = '0.0.0.0'
     otherUDPPORT = 8888
     RegisteredClientsCSV = 'registeredClient2.csv'
+    clientPasswordCSV = 'clientPasswords2.csv'
 
 # Set up UDP socket for receiving publish/comment commands from clients
 
@@ -70,6 +73,7 @@ except socket.error as msg:
 # CSV File Paths
 
 CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), RegisteredClientsCSV)
+clientPassword_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), clientPasswordCSV)
 processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
 userSubjects_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'userSubjects.csv')
 
@@ -103,9 +107,9 @@ def extract_marked_field(value, prefix):
 def writeToCSV():
     with open(CSV_FILE, mode='w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(['Client Name', 'IP Address', 'UDP Port'])
+        writer.writerow(['Client Name', 'IP Address', 'UDP Port', "Password"])
         for client in RegisteredClients:
-            writer.writerow([client[0], client[1], client[2]])
+            writer.writerow([client[0], client[1], client[2], "client[4]"])
 
     with open(userSubjects_FILE, mode='w', newline='') as fil:
         writer = csv.writer(fil)
@@ -113,6 +117,13 @@ def writeToCSV():
             normalized = normalize_subject_row(subjects)
             if normalized is not None and is_registered_client(normalized[0]):
                 writer.writerow(normalized)
+
+def writeToPasswordCSV():
+    with open(clientPassword_FILE, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Client Name', 'Password'])
+        for client in clientPasswords:
+            writer.writerow([client[0], client[1]])
 
 def updateUserCommands():
     with open(processingCSV_FILE, mode='w', newline='') as file:
@@ -146,6 +157,13 @@ def readCSVInit():
                 continue
             if row_name and row_ip and row_udp_port:
                 RegisteredClients.append((row_name, row_ip, row_udp_port))
+
+    with open(clientPasswordCSV, mode='r', newline='') as fille:
+        reader = csv.reader(fille)
+        for row in reader:
+            if len(row) < 2:
+                continue
+            clientPasswords.append((row[0].strip().lower(), row[1].strip()))
 
     with open(userSubjects_FILE, mode='r', newline='') as fill:
         reader = csv.reader(fill)
@@ -212,6 +230,8 @@ def TCPRegister(request):
                 client_name = str(parts[2]).lower()
                 client_IP = str(parts[3])
                 client_UDP_Port = str(parts[4])
+                client_Pass = parts[5] if len(parts) > 5 else ""
+
                 if any((client[0] == client_name) for client in RegisteredClients): #change and for multi client testing, back to or for single client per IP
                     message = f"REGISTER DENIED: {request_id} ALREADY REGISTERED"
                     global numClients
@@ -221,17 +241,27 @@ def TCPRegister(request):
                     if numClients < 1 and referedLast == False:
                         registeredOnOther = True
                         registeredOnOther = handleSendServertoServer(request, waitForAck=True) 
-                    
+
+                        print(clientPasswords)
+
                         if registeredOnOther:
                             message = f"REGISTER DENIED: {request_id} REGISTERED ON OTHER SERVER"
                         elif registeredOnOther == False:
-                            RegisteredClients.append((client_name, client_IP, client_UDP_Port))
-                            #Justin Testing
-                            clientSubjects.append([client_name])
-                            message = f"REGISTERED {request_id}"
-                            writeToCSV()
-                            numClients += 1
-                            referedLast = True
+                            if any(((clientPass[0] == client_name) and (clientPass[1] != client_Pass)) for clientPass in clientPasswords):
+                                message = f"REGISTER DENIED: {request_id} INCORRECT PASSWORD"
+                            else:
+                                RegisteredClients.append((client_name, client_IP, client_UDP_Port, client_Pass))
+                                #Justin Testing
+                                clientSubjects.append([client_name])
+                                message = f"REGISTERED {request_id}"
+                                writeToCSV()
+
+                                if not any(((clientPass[0] == client_name)) for clientPass in clientPasswords):
+                                    clientPasswords.append((client_name, client_Pass))
+                                    writeToPasswordCSV()
+
+                                numClients += 1
+                                referedLast = True
                     else:
                         message = "REFER " + request_id + " " + otherHOST + " " + str(otherClientPORT)
                         referedLast = False
@@ -282,8 +312,13 @@ def TCPUpdate(request, client_ip):
         
         for client in RegisteredClients:
             if (client[0] == client_name):
+                
+                clientIP = client[1]
+                clientName = client[0]
+                clientPassword = client[4] if len(client) > 4 else ""
+
                 RegisteredClients.remove(client)
-                RegisteredClients.append((client_name, str(client_ip), new_udp_port)) # Name, IP, UDP Socket
+                RegisteredClients.append((clientName, str(clientIP), new_udp_port, clientPassword)) # Name, IP, UDP Socket
 
                 message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + str(client_ip) + " " + new_udp_port
                 writeToCSV()

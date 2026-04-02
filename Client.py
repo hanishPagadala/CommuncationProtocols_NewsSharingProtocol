@@ -24,7 +24,8 @@ udpServerPort = 8888 if randomInt == 1 else 8889
 #     sys.exit()
 
 Request = 0
-userName = "Lebron"
+userName = ""
+password = ""
 registered = False
 refered = False
 clientIP = socket.gethostbyname(socket.gethostname())
@@ -162,7 +163,7 @@ def sendMessage(message):
 
             if (len(reply) > 4) and(reply[3] == "ALREADY") and (reply[4] == "REGISTERED"):
                 print("Registration denied: You are already registered. Please update your information or unregister first.")
-                registered = True
+                registered = False
 
     except socket.timeout:
         print("No response received from server within timeout period.")
@@ -172,7 +173,7 @@ def sendMessage(message):
     sock.close()
     time.sleep(0.2)
     if (refered) and (len(reply) > 3):
-        newMessage = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo)
+        newMessage = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo) + " " + password
         server_address = (reply[2], int(reply[3]))
 
         print(f"Attempting to register with new server at {server_address}...")
@@ -183,11 +184,12 @@ def sendMessage(message):
 
 # functions in the system
 def on_register():
-    global userName, Request
+    global userName, password, Request
     name = simpledialog.askstring("Input", "Enter your name:")
+    password = simpledialog.askstring("Input", "Enter your password:")
     if name:
         userName = name
-        message = f"Register {Request} {userName} {clientIP} {PORTNo}"
+        message = f"Register {Request} {userName} {clientIP} {PORTNo} {password}"
         threading.Thread(target=sendMessage, args=(message,), daemon=True).start()
         update_request()
 
