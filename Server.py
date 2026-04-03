@@ -3,6 +3,7 @@ import socket
 import threading
 import sys
 import csv #hello
+import time
 
 # Arrays and Global Variables
 
@@ -13,7 +14,9 @@ clientSubjects = []
 processingCommands = []
 availablePublications = []
 
+udpSock = None
 udpThread = None
+udpStopEvent = threading.Event()
 
 referedLast = False
 
@@ -22,7 +25,7 @@ stateLock = threading.RLock()
 
 # Server Selection
 
-SERVER_SELECTION = 1 # Choose between 0 or 1 for even and odd testing for refer
+SERVER_SELECTION = 0 # Choose between 0 or 1 for even and odd testing for refer
 if SERVER_SELECTION == 0:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -409,6 +412,12 @@ def UDPPublish(request, addr):
         udpSock.sendto(f"PUBLISH-DENIED {rq} UserNotRegistered".encode(), addr)
         return 
 
+    if addr is not None:
+        udpSock.sendto(
+            f"PUBLISH-OK {rq}".encode(),
+            addr
+        )
+
     # if not any((client[0] == sender_name) for client in RegisteredClients):
     #     message = f"PUBLISH-DENIED {rq} UserNotRegistered "
     #     if addr is not None:
@@ -443,12 +452,6 @@ def UDPPublish(request, addr):
                 else:
                     continue
 
-    if addr is not None:
-        udpSock.sendto(
-            f"PUBLISH-OK {rq}".encode(),
-            addr
-        )
-
 def UDPComment(request, addr):
     parts = request.split()
 
@@ -470,35 +473,37 @@ def UDPComment(request, addr):
     # If sender is not registered, deny the publish/comment and return
     if (addr is not None) and (is_registered_client(name.lower()) == False):
         udpSock.sendto(f"COMMENT-DENIED {rq} UserNotRegistered".encode(), addr)
-    return 
+        return
 
     # if not any((client[0] == name) for client in RegisteredClients):
     #     if addr is not None:
     #         udpSock.sendto(f"COMMENT-DENIED {rq} UserNotRegistered".encode(), addr)
     #     return
 
-    for client in RegisteredClients:
-        if len(client) < 3:
-            continue
+    with stateLock:
+        for client in RegisteredClients:
+            if len(client) < 3:
+                continue
 
-        client_name = str(client[0]).lower()
-        client_ip = client[1]
-        client_port = client[2]
-        
-        for publications in availablePublications:
-            if (publications[0] == subject) and (publications[1] == title):  
-                for userSubjects in clientSubjects:
-                    if userSubjects[0] == client_name and subject in userSubjects[1:]:
-                        try:
-                            user_addr = (client_ip, int(client_port))
-                        except ValueError:
+            client_name = str(client[0]).lower()
+            client_ip = client[1]
+            client_port = client[2]
+            
+            for publications in availablePublications:
+                if (publications[0] == subject) and (publications[1] == title):  
+                    for userSubjects in clientSubjects:
+                        if userSubjects[0] == client_name and subject in userSubjects[1:]:
+                            try:
+                                user_addr = (client_ip, int(client_port))
+                            except ValueError:
+                                continue
+                            
+                            messageToSend = f"Comment {name} {subject} {title} {text}"
+                            print("Sending comment to: " + client_name)
+                            udpSock.sendto(messageToSend.encode(), user_addr) 
+                            continue                    
+                        else:
                             continue
-                        
-                        messageToSend = f"Comment {name} {subject} {title} {text}"
-                        print("Sending comment to: " + client_name)
-                        udpSock.sendto(messageToSend.encode(), user_addr)                      
-                    else:
-                        continue
 
     if addr is not None:
         udpSock.sendto(
@@ -550,22 +555,20 @@ def getDatafromClient(connection, client_address):
     finally:
         connection.close()
 
+
 def getUDPDataFromClient():
     while True:
         data, addr = udpSock.recvfrom(4096)
         request = data.decode()
         print(f"UDP: {request}")
 
-        handleSendServertoServer(request, waitForAck=False) #send original request to other server        
-
         parts = request.split()
         if not parts:
             continue
         command = parts[0]
 
-        with stateLock:
-            processingCommands.append(request)
-            updateUserCommands()
+        processingCommands.append(request)
+        updateUserCommands()
 
         if is_registered_client(parts[2].lower()):
             if command == "Publish":
@@ -575,9 +578,8 @@ def getUDPDataFromClient():
         else:
             udpSock.sendto(f"{command} - DENIED {parts[1]} User Not Registered".encode(), addr)
 
-        with stateLock:
-            processingCommands.remove(request)
-            updateUserCommands()
+        processingCommands.remove(request)
+        updateUserCommands()
 
 # ================= END TCP and UDP Communication Functions =================
 
