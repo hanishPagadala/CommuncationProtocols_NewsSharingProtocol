@@ -18,6 +18,10 @@ udpSock = None
 udpThread = None
 udpStopEvent = threading.Event()
 
+ackLock = threading.Lock()
+ackCondition = threading.Condition(ackLock)
+pendingRegisterAcks = {}
+
 referedLast = False
 
 # Synchronize shared in-memory state and CSV persistence across threads.
@@ -25,7 +29,7 @@ stateLock = threading.RLock()
 
 # Server Selection
 
-SERVER_SELECTION = 0 # Choose between 0 or 1 for even and odd testing for refer
+SERVER_SELECTION = 1 # Choose between 0 or 1 for even and odd testing for refer
 if SERVER_SELECTION == 0:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
@@ -567,6 +571,34 @@ def getUDPDataFromClient():
             continue
         command = parts[0]
 
+        # Handle UDP server-to-server control messages.
+        if command == "S2S-REGISTER":
+            if len(parts) >= 3:
+                request_id = parts[1]
+                client_name = parts[2].lower()
+                ack = "ACCEPT" if not is_registered_client(client_name) else "DENY"
+                udpSock.sendto(f"S2S-REGISTER-ACK {request_id} {ack}".encode(), addr)
+            continue
+
+        if command == "S2S-REGISTER-ACK":
+            if len(parts) >= 3:
+                request_id = parts[1]
+                ack = parts[2]
+                with ackCondition:
+                    pendingRegisterAcks[request_id] = ack
+                    ackCondition.notify_all()
+            continue
+
+        if command == "S2S-UPDATE-PASSWORD":
+            if len(parts) >= 3:
+                client_name = parts[1].lower()
+                new_password = parts[2]
+                with stateLock:
+                    if not any((cp[0] == client_name) for cp in clientPasswords):
+                        clientPasswords.append((client_name, new_password))
+                        writeToPasswordCSV()
+            continue
+
         processingCommands.append(request)
         updateUserCommands()
 
@@ -586,28 +618,42 @@ def getUDPDataFromClient():
 # ================= Server-to-Server Communication Functions =================
 
 def handleSendServertoServer (message, waitForAck : bool):
-    #open socket with other server, send the publish/comment command to other server
-    sockToServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # UDP-based server-to-server communication using the existing udpSock.
+    global udpSock
+    otherServerUDPAddress = (otherHOST, otherUDPPORT)
     try:
-        global otherServerServerAddress
-        sockToServer.connect(otherServerServerAddress)
-        sockToServer.sendall(message.encode())
-        
-        if waitForAck == True:
-            received = ""
-            data = sockToServer.recv(4096)
-            if data:
-                received += data.decode()
-                print(f"Received from other server (IM IN handleSendServertoServer): {received}")
-                if received == "REGISTER-ACCEPT":
-                    return False
-                elif received == "REGISTER-DENY":
-                    return True
+        if waitForAck:
+            parts = message.split()
+            if len(parts) < 3:
+                return True
+
+            request_id = parts[1] + "-" + str(time.time_ns())
+            client_name = parts[2].lower()
+            outbound = f"S2S-REGISTER {request_id} {client_name}"
+
+            with ackCondition:
+                pendingRegisterAcks.pop(request_id, None)
+
+            udpSock.sendto(outbound.encode(), otherServerUDPAddress)
+
+            deadline = time.time() + 2.0
+            with ackCondition:
+                while request_id not in pendingRegisterAcks and time.time() < deadline:
+                    remaining = deadline - time.time()
+                    ackCondition.wait(timeout=max(0.0, remaining))
+                ack = pendingRegisterAcks.pop(request_id, None)
+
+            if ack == "ACCEPT":
+                return False
+            return True
+
+        if message.startswith("UPDATE-PASSWORD "):
+            udpSock.sendto(("S2S-UPDATE-PASSWORD " + message[len("UPDATE-PASSWORD "):]).encode(), otherServerUDPAddress)
 
     except Exception as e:
-        print(f"Error connecting to other server at {otherServerServerAddress}: {e}")
-    finally:
-        sockToServer.close()
+        print(f"Error sending UDP to other server at {otherServerUDPAddress}: {e}")
+        if waitForAck:
+            return True
 
 def handleReceiveServertoServer(connection):
     try:
