@@ -84,46 +84,35 @@ def stopUDP():
         udpThread.join(timeout=0.05)
     udpThread = None
 
-def startUDP(port, mode: str, message: str):
-    if not mode:
-        mode = "Listener"
-
+def startUDP(port):
     global udpSock
     global udpThread
 
-    stopUDP()       # If there is already a present one, cut it off (update command)
+    stopUDP()
     udpStopEvent.clear()
 
-    time.sleep(0.1) # Give the previous thread a moment to close
+    time.sleep(0.1)
 
     udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udpSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     udpSock.bind((udpHOST, int(port)))
     udpSock.settimeout(1.0)
 
-    if mode == "Listener":
-        udpThread = threading.Thread(target = udpListenerLoop, args=(udpSock,), daemon=True)
-        udpThread.start()
-    else:
-        udpThread = threading.Thread(target = sendUDPMessage, args=(udpSock, message, int(port)), daemon=True)
-        udpThread.start()
+    udpThread = threading.Thread(target=udpListenerLoop, args=(udpSock,), daemon=True)
+    udpThread.start()
         
 
-def sendUDPMessage(sock, message, port):
-    # Regular send and recieve UDP Messages, closes after each message
-    try:
-        sock.sendto(message.encode(), (serverAddress, udpServerPort))
+def sendUDPMessage(message):
+    global udpSock
+    # Keep one UDP socket alive for both sending and receiving.
+    if udpSock is None:
+        print("UDP socket is not active")
+        return
 
-        try:
-            data = sock.recvfrom(4096)
-            reply = data[0].decode()
-            addr = data[1]
-            print(reply)
-        except socket.timeout:
-            print("No UDP acknowledgement received from server")
-    finally:
-        stopUDP()
-        startUDP(port, "Listener", "")
+    try:
+        udpSock.sendto(message.encode(), (serverAddress, udpServerPort))
+    except OSError as e:
+        print(f"UDP send failed: {e}")
 
 def sendMessage(message):
     #TCP send and recieve, closes after each message
@@ -138,7 +127,6 @@ def sendMessage(message):
 
         sock.sendall(message.encode())
         
-
         data = sock.recv(4096)
         recieved = ""
         if data:
@@ -148,7 +136,7 @@ def sendMessage(message):
             if reply[0] == "UPDATE-CONFIRMED":
                 global PORTNo
                 PORTNo = int(reply[4])
-                startUDP(PORTNo, "Listener", "")
+                startUDP(PORTNo)
             elif reply[0] == "REGISTERED":
                 registered = True
                 refered = False
@@ -200,7 +188,7 @@ def on_publish():
     text = simpledialog.askstring("Publish", "Enter text:")
     if subj and title and text:
         message = f"Publish {Request} {userName} Subj3ct:{subj}* Titl3:{title}* T3xt: {text}"
-        startUDP(PORTNo, "Sender", message)
+        threading.Thread(target=sendUDPMessage, args=(message,), daemon=True).start()
         update_request()
 
 def on_comment():
@@ -210,7 +198,7 @@ def on_comment():
     text = simpledialog.askstring("Comment", "Enter comment text:")
     if subj and title and text:
         message = f"Publish-Comment {Request} {userName} Subj3ct:{subj}* Titl3:{title}* Comm3nt: {text}"
-        startUDP(PORTNo, "Sender", message)
+        threading.Thread(target=sendUDPMessage, args=(message,), daemon=True).start()
         update_request()
 
 def on_subjects():
@@ -296,7 +284,7 @@ def setup_ui():
     tk.Button(frame_left, text="Quit", width=15, fg="red", command=on_quit).pack(side="bottom", pady=20)
 
     
-    startUDP(PORTNo, "Listener", "")
+    startUDP(PORTNo)
     update_status_label()
     
     root.mainloop()
