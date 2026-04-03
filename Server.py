@@ -13,15 +13,17 @@ clientSubjects = []
 processingCommands = []
 availablePublications = []
 
-numClients = 0
 udpThread = None
 
 referedLast = False
 
+# Synchronize shared in-memory state and CSV persistence across threads.
+stateLock = threading.RLock()
+
 # Server Selection
 
-SERVER_SELECTION = 1
-if SERVER_SELECTION == 1:
+SERVER_SELECTION = 1 # Choose between 0 or 1 for even and odd testing for refer
+if SERVER_SELECTION == 0:
     HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
     CLIENTPORT = 10000
     SERVERPORT = 10003
@@ -38,7 +40,7 @@ if SERVER_SELECTION == 1:
     otherUDPPORT = 8889
     RegisteredClientsCSV = 'registeredClient.csv'
     clientPasswordCSV = 'clientPasswords.csv'
-if SERVER_SELECTION == 2:
+if SERVER_SELECTION == 1:
     HOST = 'localhost' 
     CLIENTPORT = 10001
     SERVERPORT = 10002
@@ -96,7 +98,8 @@ def normalize_subject_row(row):
     return [name, *subjects]
 
 def is_registered_client(name):
-    return any(client[0] == name for client in RegisteredClients)        
+    with stateLock:
+        return any(client[0] == name for client in RegisteredClients)        
 
 def extract_marked_field(value, prefix):
     cleaned = str(value).strip()
@@ -105,105 +108,109 @@ def extract_marked_field(value, prefix):
     return cleaned
 
 def writeToCSV():
-    with open(CSV_FILE, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['Client Name', 'IP Address', 'UDP Port', "Password"])
-        for client in RegisteredClients:
-            writer.writerow([client[0], client[1], client[2], "client[4]"])
+    with stateLock:
+        with open(CSV_FILE, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['Client Name', 'IP Address', 'UDP Port', "Password"])
+            for client in RegisteredClients:
+                writer.writerow([client[0], client[1], client[2], "client[4]"])
 
-    with open(userSubjects_FILE, mode='w', newline='') as fil:
-        writer = csv.writer(fil)
-        for subjects in clientSubjects:
-            normalized = normalize_subject_row(subjects)
-            if normalized is not None and is_registered_client(normalized[0]):
-                writer.writerow(normalized)
+        with open(userSubjects_FILE, mode='w', newline='') as fil:
+            writer = csv.writer(fil)
+            for subjects in clientSubjects:
+                normalized = normalize_subject_row(subjects)
+                if normalized is not None and is_registered_client(normalized[0]):
+                    writer.writerow(normalized)
 
 def writeToPasswordCSV():
-    with open(clientPassword_FILE, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['Client Name', 'Password'])
-        for client in clientPasswords:
-            writer.writerow([client[0], client[1]])
+    with stateLock:
+        with open(clientPassword_FILE, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['Client Name', 'Password'])
+            for client in clientPasswords:
+                writer.writerow([client[0], client[1]])
 
 def updateUserCommands():
-    with open(processingCSV_FILE, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        for command in processingCommands:
-            if command == "Quit":
-                continue
-            writer.writerow([command])
+    with stateLock:
+        with open(processingCSV_FILE, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            for command in processingCommands:
+                if command == "Quit":
+                    continue
+                writer.writerow([command])
 
 def readCSVInit():
     # Read from CSV to initialize RegisteredClients and clientSubjects, and clear CSV for new session
     oldCommands = []
     
-    with open(CSV_FILE, mode='r', newline='') as fille:
-        reader = csv.reader(fille)
-        for row in reader:
-            if len(row) < 3:
+    with stateLock:
+        with open(CSV_FILE, mode='r', newline='') as fille:
+            reader = csv.reader(fille)
+            for row in reader:
+                if len(row) < 3:
+                    continue
+
+                row_name = row[0].strip().lower()
+                row_ip = row[1].strip()
+                row_udp_port = row[2].strip()
+
+                # Ignore CSV header lines and malformed rows.
+                if row_name == 'client name':
+                    continue
+
+                try:
+                    int(row_udp_port)
+                except ValueError:
+                    continue
+                if row_name and row_ip and row_udp_port:
+                    RegisteredClients.append((row_name, row_ip, row_udp_port))
+
+        with open(clientPasswordCSV, mode='r', newline='') as fille:
+            reader = csv.reader(fille)
+            for row in reader:
+                if (len(row) < 2) or (row[0].strip().lower() == 'client name'):
+                    continue
+                clientPasswords.append((row[0].strip().lower(), row[1].strip()))
+
+        with open(userSubjects_FILE, mode='r', newline='') as fill:
+            reader = csv.reader(fill)
+            for row in reader:
+                normalized = normalize_subject_row(row)
+                if normalized is not None and is_registered_client(normalized[0]):
+                    clientSubjects.append(normalized)
+
+        with open(processingCSV_FILE, mode='r', newline='') as fille:
+            reader = csv.reader(fille)
+            for row in reader:
+                oldCommands.append(tuple(row))
+
+        writeToCSV()
+
+        # Clear the CSV files for the new session
+        with open(CSV_FILE, mode='w', newline='') as theFile:
+           pass
+        with open(userSubjects_FILE, mode='w', newline='') as theFil:
+            pass
+        with open(processingCSV_FILE, mode='w', newline='') as theFil:
+            pass
+
+        for command in oldCommands:
+            request = ""
+            for subCommand in command:
+                request += str(subCommand) + " "
+            processingCommands.append(request)
+
+        for command in processingCommands:
+            parts = command.split()
+            if len(parts) < 2:
                 continue
-
-            row_name = row[0].strip().lower()
-            row_ip = row[1].strip()
-            row_udp_port = row[2].strip()
-
-            # Ignore CSV header lines and malformed rows.
-            if row_name == 'client name':
-                continue
-
-            try:
-                int(row_udp_port)
-            except ValueError:
-                continue
-            if row_name and row_ip and row_udp_port:
-                RegisteredClients.append((row_name, row_ip, row_udp_port))
-
-    with open(clientPasswordCSV, mode='r', newline='') as fille:
-        reader = csv.reader(fille)
-        for row in reader:
-            if (len(row) < 2) or (row[0].strip().lower() == 'client name'):
-                continue
-            clientPasswords.append((row[0].strip().lower(), row[1].strip()))
-
-    with open(userSubjects_FILE, mode='r', newline='') as fill:
-        reader = csv.reader(fill)
-        for row in reader:
-            normalized = normalize_subject_row(row)
-            if normalized is not None and is_registered_client(normalized[0]):
-                clientSubjects.append(normalized)
-
-    with open(processingCSV_FILE, mode='r', newline='') as fille:
-        reader = csv.reader(fille)
-        for row in reader:
-            oldCommands.append(tuple(row))
-
-    writeToCSV()
-
-    # Clear the CSV files for the new session
-    with open(CSV_FILE, mode='w', newline='') as theFile:
-       pass
-    with open(userSubjects_FILE, mode='w', newline='') as theFil:
-        pass
-    with open(processingCSV_FILE, mode='w', newline='') as theFil:
-        pass
-
-    for command in oldCommands:
-        request = ""
-        for subCommand in command:
-            request += str(subCommand) + " "
-        processingCommands.append(request)
-
-    for command in processingCommands:
-        parts = command.split()
-        if len(parts) < 2:
-            continue
-        counter = 0
-        commandToRun = ""
-        for item in parts:
-            if counter >= len(parts) - 1:
-                break
-            commandToRun += parts[counter] + " "
-            counter += 1
+            counter = 0
+            commandToRun = ""
+            for item in parts:
+                if counter >= len(parts) - 1:
+                    break
+                commandToRun += parts[counter] + " "
+                counter += 1
         # if parts[len(parts) - 1] == "TCP":
         #     processingCommands.remove(command)
         #     getDatafromClient(commandToRun.encode(), ("", ""))
@@ -215,7 +222,7 @@ def readCSVInit():
 def TCPRegister(request):
     parts = request.split()
     message = " "
-    global referedLast
+    global referedLast, SERVER_SELECTION
 
     if len(parts) < 2:
         message = "UNABLE TO REGISTER: INVALID REQUEST FORMAT"
@@ -232,42 +239,39 @@ def TCPRegister(request):
                 client_UDP_Port = str(parts[4])
                 client_Pass = parts[5] if len(parts) > 5 else ""
 
-                if any((client[0] == client_name) for client in RegisteredClients): #change and for multi client testing, back to or for single client per IP
+                with stateLock:
+                    alreadyRegistered = any((client[0] == client_name) for client in RegisteredClients)
+
+                if alreadyRegistered: #change and for multi client testing, back to or for single client per IP
                     message = f"REGISTER DENIED: {request_id} ALREADY REGISTERED"
-                    global numClients
-                    numClients += 1 #Justin Testing, remove when done
                 else:
                     #testing simple referring
-                    if numClients < 1 and referedLast == False:
-                        registeredOnOther = True
-                        registeredOnOther = handleSendServertoServer(request, waitForAck=True) 
+                    registeredOnOther = True
+                    registeredOnOther = handleSendServertoServer(request, waitForAck=True) 
 
-                        print(clientPasswords)
-
+                    if int(client_IP[-1])%2 == SERVER_SELECTION:
                         if registeredOnOther:
                             message = f"REGISTER DENIED: {request_id} REGISTERED ON OTHER SERVER"
                         elif registeredOnOther == False:
-                            if any(((clientPass[0] == client_name) and (clientPass[1] != client_Pass)) for clientPass in clientPasswords):
-                                message = f"REGISTER DENIED: {request_id} INCORRECT PASSWORD"
-                            else:
-                                RegisteredClients.append((client_name, client_IP, client_UDP_Port, client_Pass))
-                                #Justin Testing
-                                clientSubjects.append([client_name])
-                                message = f"REGISTERED {request_id}"
-                                writeToCSV()
+                            with stateLock:
+                                if any(((clientPass[0] == client_name) and (clientPass[1] != client_Pass)) for clientPass in clientPasswords):
+                                    message = f"REGISTER DENIED: {request_id} INCORRECT PASSWORD"
+                                else:
+                                    RegisteredClients.append((client_name, client_IP, client_UDP_Port, client_Pass))
+                                    #Justin Testing
+                                    clientSubjects.append([client_name])
+                                    message = f"REGISTERED {request_id}"
+                                    writeToCSV()
 
-                                print(client_name, client_Pass)
+                                    print(client_name, client_Pass)
 
-                                if not any(((clientPass[0] == client_name)) for clientPass in clientPasswords):
-                                    clientPasswords.append((client_name, client_Pass))
-                                    handleSendServertoServer("UPDATE-PASSWORD "  +  client_name + " " + client_Pass, waitForAck=False)
-                                    writeToPasswordCSV()
-
-                                numClients += 1
-                                referedLast = True
+                                    if not any(((clientPass[0] == client_name)) for clientPass in clientPasswords):
+                                        clientPasswords.append((client_name, client_Pass))
+                                        handleSendServertoServer("UPDATE-PASSWORD "  +  client_name + " " + client_Pass, waitForAck=False)
+                                        writeToPasswordCSV()   
                     else:
                         message = "REFER " + request_id + " " + otherHOST + " " + str(otherClientPORT)
-                        referedLast = False
+                        
     return message
 
 def TCPUnregister(request):
@@ -277,23 +281,21 @@ def TCPUnregister(request):
 
     message = "NOT REGISTERED"
 
-    global numClients
-
     client_name = str(parts[2]).lower()
-    for client in RegisteredClients:
-        if (client[0] == client_name):
-            RegisteredClients.remove(client)
+    with stateLock:
+        for client in RegisteredClients:
+            if (client[0] == client_name):
+                RegisteredClients.remove(client)
 
-            #Justin Testing
-            message = "UNREGISTERED " + parts[1]
-            numClients -= 1
+                #Justin Testing
+                message = "UNREGISTERED " + parts[1]
 
-            for subject in clientSubjects:
-                if subject[0] == client_name:
-                    clientSubjects.remove(subject)
+                for subject in clientSubjects:
+                    if subject[0] == client_name:
+                        clientSubjects.remove(subject)
 
-            writeToCSV()
-            break
+                writeToCSV()
+                break
     return message
 
 def TCPUpdate(request, client_ip):
@@ -313,21 +315,22 @@ def TCPUpdate(request, client_ip):
         except ValueError:
             return "UPDATE-DENIED " + request_id + " INVALID UDP PORT"
         
-        for client in RegisteredClients:
-            if (client[0] == client_name):
-                
-                clientIP = client[1]
-                clientName = client[0]
-                clientPassword = client[4] if len(client) > 4 else ""
+        with stateLock:
+            for client in RegisteredClients:
+                if (client[0] == client_name):
+                    
+                    clientIP = client[1]
+                    clientName = client[0]
+                    clientPassword = client[4] if len(client) > 4 else ""
 
-                RegisteredClients.remove(client)
-                RegisteredClients.append((clientName, str(clientIP), new_udp_port, clientPassword)) # Name, IP, UDP Socket
+                    RegisteredClients.remove(client)
+                    RegisteredClients.append((clientName, str(clientIP), new_udp_port, clientPassword)) # Name, IP, UDP Socket
 
-                message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + str(client_ip) + " " + new_udp_port
-                writeToCSV()
-                break
-            else:
-                message = "UPDATE-DENIED " + request_id + " Name and IP not registered"
+                    message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + str(client_ip) + " " + new_udp_port
+                    writeToCSV()
+                    break
+                else:
+                    message = "UPDATE-DENIED " + request_id + " Name and IP not registered"
     return message
 
 def TCPSubjects(request):
@@ -341,18 +344,19 @@ def TCPSubjects(request):
     splitSubjects = [item.strip() for item in listOfSubjects.split(",") if item.strip()]
     client_name = str(parts[2]).lower()
 
-    for name in clientSubjects:
-        if name[0] == client_name:
-            clientSubjects.remove(name)
-            
-    clientSubjects.append([client_name])
-    for name in clientSubjects:
-        if name[0] == client_name:
-            for item in splitSubjects:  # Skip command, request_id, and client_name; only process actual subjects
-                name.append(item)
-                response += item + " "
-    
-    writeToCSV()
+    with stateLock:
+        for name in clientSubjects:
+            if name[0] == client_name:
+                clientSubjects.remove(name)
+                
+        clientSubjects.append([client_name])
+        for name in clientSubjects:
+            if name[0] == client_name:
+                for item in splitSubjects:  # Skip command, request_id, and client_name; only process actual subjects
+                    name.append(item)
+                    response += item + " "
+        
+        writeToCSV()
     message = "SUBJECTS UPDATED " + response
 
     return message
@@ -364,22 +368,18 @@ def TCPQuit(request):
 
     client_name = str(parts[2]).lower()
 
-    global numClients
+    with stateLock:
+        for client in RegisteredClients:
+            if (client[0] == client_name):
+                RegisteredClients.remove(client)
 
-    for client in RegisteredClients:
-        if (client[0] == client_name):
-            RegisteredClients.remove(client)
+                for subject in clientSubjects:
+                    if subject[0] == client_name:
+                        clientSubjects.remove(subject)
+                writeToCSV()
 
-            #Justin Testing
-            numClients -= 1
-
-            for subject in clientSubjects:
-                if subject[0] == client_name:
-                    clientSubjects.remove(subject)
-            writeToCSV()
-
-            print("QUIT CONFIRMED")
-            break
+                print("QUIT CONFIRMED")
+                break
 
 # ================= END TCP COMMANDS =================
 
@@ -415,32 +415,33 @@ def UDPPublish(request, addr):
     #         udpSock.sendto(message.encode(), addr)
     #     return
 
-    if not any( (publication[0] == subject) and (publication[1] == title) for publication in availablePublications):
-        availablePublications.append((subject, title))
-    if len(availablePublications) < 1:
-        availablePublications.append((subject, title))
-    
-    for client in RegisteredClients:
-        if len(client) < 3:
-            continue
-
-        client_name = str(client[0]).lower()
-        client_ip = client[1]
-        client_port = client[2]
+    with stateLock:
+        if not any( (publication[0] == subject) and (publication[1] == title) for publication in availablePublications):
+            availablePublications.append((subject, title))
+        if len(availablePublications) < 1:
+            availablePublications.append((subject, title))
         
-        for userSubjects in clientSubjects:
-            if userSubjects[0] == client_name and subject in userSubjects[1:]:
-                try:
-                    user_addr = (client_ip, int(client_port))
-                except ValueError:
-                    continue
-                
-                messageToSend = f"Message {name} {subject} {title} {text}"
-
-                udpSock.sendto(messageToSend.encode(), user_addr) 
-                continue                     
-            else:
+        for client in RegisteredClients:
+            if len(client) < 3:
                 continue
+
+            client_name = str(client[0]).lower()
+            client_ip = client[1]
+            client_port = client[2]
+            
+            for userSubjects in clientSubjects:
+                if userSubjects[0] == client_name and subject in userSubjects[1:]:
+                    try:
+                        user_addr = (client_ip, int(client_port))
+                    except ValueError:
+                        continue
+                    
+                    messageToSend = f"Message {name} {subject} {title} {text}"
+
+                    udpSock.sendto(messageToSend.encode(), user_addr) 
+                    continue                     
+                else:
+                    continue
 
     if addr is not None:
         udpSock.sendto(
@@ -510,7 +511,6 @@ def UDPComment(request, addr):
 # ================= TCP and UDP Communication Functions =================
 def getDatafromClient(connection, client_address):
     try:
-        global numClients
         while True:
             data = connection.recv(4096)
             if not data:
@@ -563,8 +563,9 @@ def getUDPDataFromClient():
             continue
         command = parts[0]
 
-        processingCommands.append(request)
-        updateUserCommands()
+        with stateLock:
+            processingCommands.append(request)
+            updateUserCommands()
 
         if is_registered_client(parts[2].lower()):
             if command == "Publish":
@@ -574,8 +575,9 @@ def getUDPDataFromClient():
         else:
             udpSock.sendto(f"{command} - DENIED {parts[1]} User Not Registered".encode(), addr)
 
-        processingCommands.remove(request)
-        updateUserCommands()
+        with stateLock:
+            processingCommands.remove(request)
+            updateUserCommands()
 
 # ================= END TCP and UDP Communication Functions =================
 
@@ -605,7 +607,6 @@ def handleSendServertoServer (message, waitForAck : bool):
     finally:
         sockToServer.close()
 
-
 def handleReceiveServertoServer(connection):
     try:
         data = connection.recv(4096)
@@ -634,8 +635,9 @@ def handleReceiveServertoServer(connection):
             elif request == "UPDATE-PASSWORD":
                 client_name = parts[1].lower()
                 new_password = parts[2]
-                clientPasswords.append((client_name, new_password))
-                writeToPasswordCSV()
+                with stateLock:
+                    clientPasswords.append((client_name, new_password))
+                    writeToPasswordCSV()
     except Exception as e:
         print(f"Error receiving data from other server: {e}")
     finally:
@@ -665,8 +667,6 @@ serverSock.listen(1)
 udpConnectionThread = threading.Thread(target=getUDPDataFromClient)
 udpConnectionThread.daemon = True
 udpConnectionThread.start()
-
-messageToServer = "Hello from server"
 
 # Read from CSV to initialize RegisteredClients and clientSubjects, and clear CSV for new session
 readCSVInit()
