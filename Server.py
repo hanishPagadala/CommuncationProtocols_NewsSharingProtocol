@@ -4,6 +4,9 @@ import threading
 import sys
 import csv #hello
 import time
+import builtins
+import tkinter as tk
+from tkinter import scrolledtext
 
 # Arrays and Global Variables
 
@@ -17,6 +20,29 @@ availablePublications = []
 udpSock = None
 udpThread = None
 udpStopEvent = threading.Event()
+clientSock = None
+serverSock = None
+udpConnectionThread = None
+serverToServerThread = None
+serverMainThread = None
+serverStopEvent = threading.Event()
+
+root = None
+log_widget = None
+status_label = None
+state_widget = None
+
+serverRunning = False
+
+real_print = print
+
+
+def gui_print(*args):
+    message = " ".join(map(str, args))
+    if root is not None and log_widget is not None:
+        root.after(0, lambda: log_widget.insert(tk.END, message + "\n"))
+        root.after(0, lambda: log_widget.see(tk.END))
+    real_print(message)
 
 ackLock = threading.Lock()
 ackCondition = threading.Condition(ackLock)
@@ -65,19 +91,7 @@ if SERVER_SELECTION == 1:
     RegisteredClientsCSV = 'registeredClient2.csv'
     clientPasswordCSV = 'clientPasswords2.csv'
 
-# Set up UDP socket for receiving publish/comment commands from clients
-
-try:
-    udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-except socket.error as msg:
-    print('Failed to create socket. Error: ' + str(msg))
-    sys.exit()
-try:
-    udpSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    udpSock.bind((UDPHOST, UDPPORT))
-except socket.error as msg:
-    print('Bind failed. Error: ' + str(msg))
-    sys.exit()
+# Networking sockets are created when the UI starts the server.
 
 # CSV File Paths
 
@@ -568,12 +582,16 @@ def getDatafromClient(connection, client_address):
 
 
 def getUDPDataFromClient():
-    while True:
+    while not serverStopEvent.is_set():
         try:
             data, addr = udpSock.recvfrom(4096)
         except ConnectionResetError:
             # Ignore ICMP Port Unreachable errors on Windows
             continue
+        except socket.timeout:
+            continue
+        except OSError:
+            break
         request = data.decode()
         print(f"UDP: {request}")
 
@@ -704,47 +722,228 @@ def handleReceiveServertoServer(connection):
 
 def listenServertoServer():
     global serverSock
-    while True:
-        connection, server2_address = serverSock.accept()
+    while not serverStopEvent.is_set():
+        try:
+            connection, server2_address = serverSock.accept()
+        except socket.timeout:
+            continue
+        except OSError:
+            break
         handleReceiveServertoServer(connection)
 
 # ================= End Server-to-Server Communication Functions =================
 
+def serverAcceptLoop():
+    global clientSock
+    while not serverStopEvent.is_set():
+        try:
+            clientConnection, client_address = clientSock.accept()
+        except socket.timeout:
+            continue
+        except OSError:
+            break
 
-# Server Code
-clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-otherServerServerAddress = (otherHOST, otherServerPORT)
+        handleClientThread = threading.Thread(
+            target=getDatafromClient,
+            args=(clientConnection, client_address,)
+        )
+        handleClientThread.daemon = True
+        handleClientThread.start()
 
-clientSock.bind(client_server_address)
-serverSock.bind(server_server_address)
 
-# Server starts listening on the port
-clientSock.listen(5)
-serverSock.listen(1)
+def close_socket(sock):
+    if sock is not None:
+        try:
+            sock.close()
+        except OSError:
+            pass
 
-udpConnectionThread = threading.Thread(target=getUDPDataFromClient)
-udpConnectionThread.daemon = True
-udpConnectionThread.start()
 
-# Read from CSV to initialize RegisteredClients and clientSubjects, and clear CSV for new session
-readCSVInit()
+def start_server():
+    global clientSock, serverSock, udpSock
+    global udpConnectionThread, serverToServerThread, serverMainThread
+    global serverRunning
 
-serverToServerThread = threading.Thread(
-    target=listenServertoServer,
-    args=()
-)
-serverToServerThread.daemon = True
-serverToServerThread.start()
+    if serverRunning:
+        return
 
-while True:
-    #Wait for a connection
-    
-    clientConnection, client_address = clientSock.accept()
-    handleClientThread = threading.Thread(
-        target=getDatafromClient,
-        args=(clientConnection, client_address,)
+    serverStopEvent.clear()
+
+    try:
+        udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udpSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        udpSock.bind((UDPHOST, UDPPORT))
+        udpSock.settimeout(1.0)
+
+        clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        clientSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        serverSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        clientSock.bind(client_server_address)
+        serverSock.bind(server_server_address)
+
+        clientSock.listen(5)
+        serverSock.listen(1)
+        clientSock.settimeout(1.0)
+        serverSock.settimeout(1.0)
+
+        if not RegisteredClients and not clientSubjects and not clientPasswords and not processingCommands:
+            readCSVInit()
+
+        udpConnectionThread = threading.Thread(target=getUDPDataFromClient, daemon=True)
+        udpConnectionThread.start()
+
+        serverToServerThread = threading.Thread(target=listenServertoServer, daemon=True)
+        serverToServerThread.start()
+
+        serverMainThread = threading.Thread(target=serverAcceptLoop, daemon=True)
+        serverMainThread.start()
+
+        serverRunning = True
+        print(f"Server started. TCP client port={CLIENTPORT}, TCP s2s port={SERVERPORT}, UDP port={UDPPORT}")
+    except Exception as e:
+        print(f"Server start failed: {e}")
+        stop_server()
+
+
+def stop_server():
+    global clientSock, serverSock, udpSock
+    global serverRunning
+
+    if not serverRunning and clientSock is None and serverSock is None and udpSock is None:
+        return
+
+    serverStopEvent.set()
+
+    close_socket(clientSock)
+    close_socket(serverSock)
+    close_socket(udpSock)
+
+    clientSock = None
+    serverSock = None
+    udpSock = None
+    serverRunning = False
+    print("Server stopped.")
+
+
+def refresh_state_view():
+    if root is None or state_widget is None:
+        return
+
+    with stateLock:
+        registered_snapshot = [tuple(item) for item in RegisteredClients]
+        subjects_snapshot = [list(item) for item in clientSubjects]
+        publications_snapshot = [tuple(item) for item in availablePublications]
+        commands_snapshot = list(processingCommands)
+
+    status_text = (
+        f"Status: {'RUNNING' if serverRunning else 'STOPPED'}\n"
+        f"Server selection: {SERVER_SELECTION}\n"
+        f"Client TCP port: {CLIENTPORT}\n"
+        f"Server TCP port: {SERVERPORT}\n"
+        f"UDP port: {UDPPORT}\n"
+        f"Registered clients: {len(registered_snapshot)}\n"
+        f"Subjects entries: {len(subjects_snapshot)}\n"
+        f"Tracked publications: {len(publications_snapshot)}\n"
+        f"Commands in progress: {len(commands_snapshot)}"
     )
 
-    handleClientThread.daemon = True
-    handleClientThread.start()
+    status_label.config(
+        text=status_text,
+        fg="green" if serverRunning else "red"
+    )
+
+    lines = []
+    lines.append("=== Registered Clients ===")
+    if registered_snapshot:
+        for row in registered_snapshot:
+            if len(row) >= 3:
+                lines.append(f"- {row[0]} | {row[1]}:{row[2]}")
+            else:
+                lines.append(f"- {row}")
+    else:
+        lines.append("(none)")
+
+    lines.append("\n=== Client Subjects ===")
+    if subjects_snapshot:
+        for row in subjects_snapshot:
+            lines.append(f"- {row[0]}: {', '.join(row[1:]) if len(row) > 1 else '(none)'}")
+    else:
+        lines.append("(none)")
+
+    lines.append("\n=== Publications ===")
+    if publications_snapshot:
+        for subject, title in publications_snapshot:
+            lines.append(f"- {subject} | {title}")
+    else:
+        lines.append("(none)")
+
+    lines.append("\n=== Processing Commands ===")
+    if commands_snapshot:
+        for command in commands_snapshot[-20:]:
+            lines.append(f"- {command}")
+    else:
+        lines.append("(none)")
+
+    state_widget.delete("1.0", tk.END)
+    state_widget.insert(tk.END, "\n".join(lines))
+
+    root.after(1200, refresh_state_view)
+
+
+def clear_logs():
+    if log_widget is not None:
+        log_widget.delete("1.0", tk.END)
+
+
+def on_close():
+    stop_server()
+    if root is not None:
+        root.destroy()
+
+
+def setup_ui():
+    global root, log_widget, status_label, state_widget
+
+    root = tk.Tk()
+    root.title("COEN 366 - News Sharing Server")
+    root.geometry("1100x700")
+
+    builtins.print = gui_print
+
+    left_panel = tk.Frame(root, width=260, bg="#f2f5f7")
+    left_panel.pack(side="left", fill="y", padx=10, pady=10)
+    left_panel.pack_propagate(False)
+
+    right_panel = tk.Frame(root)
+    right_panel.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+
+    tk.Label(left_panel, text="Server Controls", font=("Segoe UI", 12, "bold"), bg="#f2f5f7").pack(pady=(10, 8))
+    tk.Button(left_panel, text="Start Server", width=20, command=start_server).pack(pady=4)
+    tk.Button(left_panel, text="Stop Server", width=20, command=stop_server).pack(pady=4)
+    tk.Button(left_panel, text="Refresh State", width=20, command=refresh_state_view).pack(pady=4)
+    tk.Button(left_panel, text="Clear Logs", width=20, command=clear_logs).pack(pady=4)
+    tk.Button(left_panel, text="Quit", width=20, fg="red", command=on_close).pack(side="bottom", pady=15)
+
+    status_label = tk.Label(left_panel, text="Status: STOPPED", justify="left", anchor="w", bg="#f2f5f7", fg="red")
+    status_label.pack(fill="x", pady=(12, 4))
+
+    tk.Label(right_panel, text="Server Logs", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+    log_widget = scrolledtext.ScrolledText(right_panel, wrap=tk.WORD, height=16)
+    log_widget.pack(fill="both", expand=True, pady=(2, 8))
+
+    tk.Label(right_panel, text="Live Server State", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+    state_widget = scrolledtext.ScrolledText(right_panel, wrap=tk.WORD, height=14)
+    state_widget.pack(fill="both", expand=True, pady=(2, 2))
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
+
+    start_server()
+    refresh_state_view()
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    setup_ui()
