@@ -120,7 +120,7 @@ def writeToCSV():
             writer = csv.writer(file)
             writer.writerow(['Client Name', 'IP Address', 'UDP Port', "Password"])
             for client in RegisteredClients:
-                writer.writerow([client[0], client[1], client[2], "client[4]"])
+                writer.writerow([client[0], client[1], client[2], client[4] if len(client) > 4 else ""])
 
         with open(userSubjects_FILE, mode='w', newline='') as fil:
             writer = csv.writer(fil)
@@ -309,35 +309,42 @@ def TCPUpdate(request, client_ip):
     parts = request.split()
     message = ""
 
-    if len(parts) < 4:
+    if len(parts) < 5:
         message = "UPDATE-DENIED: INVALID REQUEST FORMAT"
     else:
         request_id = parts[1]
         client_name_raw = parts[2]
         client_name = str(client_name_raw).lower()
-        new_udp_port = str(parts[3])
+        new_IP = str(parts[3])
+        print("New IP: " + new_IP) 
+        new_udp_port = str(parts[4])
 
         try:
             int(new_udp_port)
-        except ValueError:
+        except (TypeError, ValueError):
             return "UPDATE-DENIED " + request_id + " INVALID UDP PORT"
         
+        client_password = ""
+        client_exists = False
+
         with stateLock:
             for client in RegisteredClients:
                 if (client[0] == client_name):
-                    
-                    clientIP = client[1]
-                    clientName = client[0]
-                    clientPassword = client[4] if len(client) > 4 else ""
 
-                    RegisteredClients.remove(client)
-                    RegisteredClients.append((clientName, str(clientIP), new_udp_port, clientPassword)) # Name, IP, UDP Socket
-
-                    message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + str(client_ip) + " " + new_udp_port
-                    writeToCSV()
+                    for clientPass in clientPasswords:
+                        if clientPass[0] == client_name:
+                            client_password = clientPass[1]
+                            client_exists = True
                     break
-                else:
-                    message = "UPDATE-DENIED " + request_id + " Name and IP not registered"
+
+        if not client_exists:
+            return "UPDATE-DENIED " + request_id + " Name and IP not registered"
+
+        unregister_message = TCPUnregister("Unregister " + request_id + " " + client_name_raw)
+        if not unregister_message.startswith("UNREGISTERED"):
+            return "UPDATE-DENIED " + request_id + " UNREGISTER FAILED"
+
+        message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + new_IP + " " + new_udp_port
     return message
 
 def TCPSubjects(request):
@@ -562,7 +569,11 @@ def getDatafromClient(connection, client_address):
 
 def getUDPDataFromClient():
     while True:
-        data, addr = udpSock.recvfrom(4096)
+        try:
+            data, addr = udpSock.recvfrom(4096)
+        except ConnectionResetError:
+            # Ignore ICMP Port Unreachable errors on Windows
+            continue
         request = data.decode()
         print(f"UDP: {request}")
 

@@ -134,8 +134,14 @@ def sendMessage(message):
             print(recieved)
             reply = recieved.split()
             if reply[0] == "UPDATE-CONFIRMED":
-                global PORTNo
+                global PORTNo, clientIP
                 PORTNo = int(reply[4])
+                clientIP = reply[3]
+                message1 = f"Unregister {Request} {userName}"
+                threading.Thread(target=sendMessage, args=(message1,), daemon=True).start()
+                update_request()
+                message2 = f"Register {Request} {userName} {clientIP} {PORTNo} {password}"
+                threading.Thread(target=sendMessage, args=(message2,), daemon=True).start()
                 startUDP(PORTNo)
             elif reply[0] == "REGISTERED":
                 registered = True
@@ -160,7 +166,7 @@ def sendMessage(message):
 
     sock.close()
     time.sleep(0.2)
-    if (refered) and (len(reply) > 3):
+    if (refered) and (len(reply) > 3) and (reply[2] != "DENIED"):
         newMessage = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo) + " " + password
         server_address = (reply[2], int(reply[3]))
 
@@ -222,9 +228,14 @@ def update_request():
 
 def on_update():
     global Request
+    new_ip = simpledialog.askstring("Update", "Enter new IP address:")
     new_port = simpledialog.askstring("Update", "Enter new UDP port:")
-    if new_port:
-        message = f"Update {Request} {userName} {new_port}"
+    if new_port == "":
+        new_port = PORTNo
+    if new_ip == "":
+        new_ip = clientIP
+    if new_port is not None and new_ip is not None:
+        message = f"Update {Request} {userName} {new_ip} {new_port}"
         threading.Thread(target=sendMessage, args=(message,), daemon=True).start()
         update_request()
 
@@ -276,8 +287,8 @@ def setup_ui():
     status_label.pack(pady=5)
     tk.Button(frame_left, text="Register", width=15, command=on_register).pack(pady=5)
     tk.Button(frame_left, text="Subscribe", width=15, command=on_subjects).pack(pady=5)
-    tk.Button(frame_left, text="Update Port", width=15, command=on_update).pack(pady=5)
-    tk.Button(frame_left, text="Publish (UDP)", width=15, command=on_publish).pack(pady=5)
+    tk.Button(frame_left, text="Update", width=15, command=on_update).pack(pady=5)
+    tk.Button(frame_left, text="Publish", width=15, command=on_publish).pack(pady=5)
     tk.Button(frame_left, text="Comment", width=15, command=on_comment).pack(pady=5)
     tk.Button(frame_left, text="Unregister", width=15, command=on_unregister).pack(pady=5)
     
