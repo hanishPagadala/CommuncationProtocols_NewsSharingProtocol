@@ -354,9 +354,9 @@ def TCPUpdate(request, client_ip):
         if not client_exists:
             return "UPDATE-DENIED " + request_id + " Name and IP not registered"
 
-        unregister_message = TCPUnregister("Unregister " + request_id + " " + client_name_raw)
-        if not unregister_message.startswith("UNREGISTERED"):
-            return "UPDATE-DENIED " + request_id + " UNREGISTER FAILED"
+        # unregister_message = TCPUnregister("Unregister " + request_id + " " + client_name_raw)
+        # if not unregister_message.startswith("UNREGISTERED"):
+        #     return "UPDATE-DENIED " + request_id + " UNREGISTER FAILED"
 
         message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + new_IP + " " + new_udp_port
     return message
