@@ -13,9 +13,8 @@ udpHOST = "0.0.0.0"
 PORTNo = 9996
 
 serverAddress = "localhost" #'132.205.94.193'
-udpServerPort = 8888 if randomInt == 1 else 8889
-
-
+serverTCPPort = 10000
+udpServerPort = 8888 
 
 # try:
 #     udpSock.bind((udpHOST, PORTNo))
@@ -29,7 +28,7 @@ password = ""
 registered = False
 refered = False
 clientIP = socket.gethostbyname(socket.gethostname())
-server_address = (serverAddress, 10000) if randomInt == 1 else (serverAddress, 10001)
+server_address = (serverAddress, serverTCPPort)
 #server_address = ('132.205.46.76', 10000)
 
 udpSock = None
@@ -103,7 +102,7 @@ def startUDP(port):
         
 
 def sendUDPMessage(message):
-    global udpSock
+    global udpSock, udpServerPort, serverAddress
     # Keep one UDP socket alive for both sending and receiving.
     if udpSock is None:
         print("UDP socket is not active")
@@ -118,8 +117,7 @@ def sendMessage(message):
     #TCP send and recieve, closes after each message
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     reply = ""
-    global server_address
-    global registered, refered, Request
+    global server_address, serverAddress, serverTCPPort, udpServerPort, registered, refered, Request
 
     try:
         sock.connect(server_address)
@@ -172,8 +170,11 @@ def sendMessage(message):
 
     sock.close()
     time.sleep(0.2)
-    if (refered) and (len(reply) > 3) and (reply[2] != "DENIED"):
+    if (refered) and (len(reply) > 4) and (reply[2] != "DENIED"):
         newMessage = "Register " + str(Request) + " " + userName + " " + clientIP + " " + str(PORTNo) + " " + password
+        serverAddress = reply[2]
+        serverTCPPort = int(reply[3])
+        udpServerPort = int(reply[4])
         server_address = (reply[2], int(reply[3]))
 
         print(f"Attempting to register with new server at {server_address}...")

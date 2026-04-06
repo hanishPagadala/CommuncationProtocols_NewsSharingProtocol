@@ -291,7 +291,7 @@ def TCPRegister(request):
                                         handleSendServertoServer("UPDATE-PASSWORD "  +  client_name + " " + client_Pass, waitForAck=False)
                                         writeToPasswordCSV()   
                     else:
-                        message = "REFER " + request_id + " " + otherHOST + " " + str(otherClientPORT)
+                        message = "REFER " + request_id + " " + otherHOST + " " + str(otherClientPORT) + " " + str(otherUDPPORT)
                         
     return message
 
@@ -420,6 +420,11 @@ def TCPQuit(request):
 def UDPPublish(request, addr):
     parts = request.split()
 
+    if parts[0] != "FORWARD":
+        serverMessage = "FORWARD " + " ".join(parts[1:])
+        handleSendServertoServer(serverMessage, waitForAck=False)
+    
+
     if len(parts) < 6:
         if addr is not None:
             udpSock.sendto("PUBLISH-DENIED INVALID-FORMAT".encode(), addr)
@@ -447,12 +452,6 @@ def UDPPublish(request, addr):
             addr
         )
 
-    # if not any((client[0] == sender_name) for client in RegisteredClients):
-    #     message = f"PUBLISH-DENIED {rq} UserNotRegistered "
-    #     if addr is not None:
-    #         udpSock.sendto(message.encode(), addr)
-    #     return
-
     with stateLock:
         if not any( (publication[0] == subject) and (publication[1] == title) for publication in availablePublications):
             availablePublications.append((subject, title))
@@ -475,7 +474,7 @@ def UDPPublish(request, addr):
                         continue
                     
                     messageToSend = f"Message {name} {subject} {title} {text}"
-
+                    print(user_addr)
                     udpSock.sendto(messageToSend.encode(), user_addr) 
                     continue                     
                 else:
@@ -635,14 +634,17 @@ def getUDPDataFromClient():
 
         processingCommands.append(request)
         updateUserCommands()
-
-        if is_registered_client(parts[2].lower()):
-            if command == "Publish":
-                UDPPublish(request, addr)
-            elif command == "Publish-Comment":
-                UDPComment(request, addr)
+        if command == "FORWARD":
+             UDPPublish(request, None)
         else:
-            udpSock.sendto(f"{command} - DENIED {parts[1]} User Not Registered".encode(), addr)
+            print(RegisteredClients)
+            if is_registered_client(str(parts[2]).lower()):
+                if command == "Publish":
+                    UDPPublish(request, addr)
+                elif command == "Publish-Comment":
+                    UDPComment(request, addr)
+            else:
+                udpSock.sendto(f"{command} - DENIED {parts[1]} User Not Registered".encode(), addr)
 
         processingCommands.remove(request)
         updateUserCommands()
@@ -683,7 +685,8 @@ def handleSendServertoServer (message, waitForAck : bool):
 
         if message.startswith("UPDATE-PASSWORD "):
             udpSock.sendto(("S2S-UPDATE-PASSWORD " + message[len("UPDATE-PASSWORD "):]).encode(), otherServerUDPAddress)
-
+        else:
+            udpSock.sendto(message.encode(), otherServerUDPAddress)
     except Exception as e:
         print(f"Error sending UDP to other server at {otherServerUDPAddress}: {e}")
         if waitForAck:
@@ -710,7 +713,7 @@ def handleReceiveServertoServer(connection):
                 else:
                     outbound = "REGISTER-ACCEPT"
                 connection.sendall(outbound.encode())
-            elif request == "Publish":
+            elif request == "FORWARD":
                 UDPPublish(message, None)
             elif request == "Publish-Comment":
                 UDPComment(message, None)
