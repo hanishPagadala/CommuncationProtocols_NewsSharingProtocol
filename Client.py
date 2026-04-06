@@ -139,15 +139,14 @@ def sendMessage(message):
                 newClientIP = reply[3]
 
                 if int(clientIP[-1])%2 != int(newClientIP[-1])%2:
-                    clientIP = newClientIP
                     message1 = f"Unregister {Request} {userName}"
 
                     threading.Thread(target=sendMessage, args=(message1,), daemon=True).start()
-                    update_request()
                     time.sleep(0.5)
-                    message2 = f"Register {Request} {userName} {clientIP} {PORTNo} {password}"
+                    message2 = f"Register {Request} {userName} {newClientIP} {PORTNo} {password}"
                     threading.Thread(target=sendMessage, args=(message2,), daemon=True).start()
-                    update_request()
+                clientIP = newClientIP
+                update_request()
                 startUDP(PORTNo)
 
             elif reply[0] == "REGISTERED":
