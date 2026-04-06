@@ -488,6 +488,11 @@ def UDPComment(request, addr):
             udpSock.sendto("COMMENT-DENIED INVALID-FORMAT".encode(), addr)
         return
 
+    if parts[0] != "FORWARD-COMMENT":
+        serverMessage = "FORWARD-COMMENT " + " ".join(parts[1:])
+        handleSendServertoServer(serverMessage, waitForAck=False)
+    
+
     rq = parts[1]
     name = str(parts[2]).lower()
 
@@ -636,6 +641,8 @@ def getUDPDataFromClient():
         updateUserCommands()
         if command == "FORWARD":
              UDPPublish(request, None)
+        elif command == "FORWARD-COMMENT":
+            UDPComment(request, addr)
         else:
             print(RegisteredClients)
             if is_registered_client(str(parts[2]).lower()):
