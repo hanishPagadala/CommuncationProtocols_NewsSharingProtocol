@@ -158,6 +158,7 @@ def sendMessage(message):
                 registered = False
                 refered = True
                 Request = 0
+                udpServerPort = int(reply[4])
 
             if (len(reply) > 4) and(reply[3] == "ALREADY") and (reply[4] == "REGISTERED"):
                 print("Registration denied: You are already registered. Please update your information or unregister first.")

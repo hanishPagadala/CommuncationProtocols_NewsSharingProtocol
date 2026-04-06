@@ -352,6 +352,7 @@ def TCPUpdate(request, client_ip):
 
                             RegisteredClients.remove(client)
                             RegisteredClients.append((client_name, new_IP, new_udp_port, client_password))
+                            writeToCSV()
                     break
 
         if not client_exists:
@@ -362,7 +363,6 @@ def TCPUpdate(request, client_ip):
         #     return "UPDATE-DENIED " + request_id + " UNREGISTER FAILED"
 
         message = "UPDATE-CONFIRMED " + request_id + " " + client_name_raw + " " + new_IP + " " + new_udp_port
-        writeToCSV()
     return message
 
 def TCPSubjects(request):
