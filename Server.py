@@ -1,8 +1,7 @@
 import os
 import socket
 import threading
-import sys
-import csv #hello
+import csv
 import time
 import builtins
 import tkinter as tk
@@ -21,7 +20,6 @@ udpSock = None
 udpThread = None
 udpStopEvent = threading.Event()
 clientSock = None
-serverSock = None # REMOVE THIS VARIABLE ONCE TESTED
 udpConnectionThread = None
 serverToServerThread = None
 serverMainThread = None
@@ -60,11 +58,10 @@ otherHOST = 'localhost' #default value, changed by user at startup configuration
 TCPPort = 10000
 UDPPort = 20000
 
-RegisteredClientsCSV = 'registeredClient.csv'
-clientPasswordCSV = 'clientPasswords.csv'
+# CSV file paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_FILE = os.path.join(BASE_DIR, RegisteredClientsCSV)
-clientPassword_FILE = os.path.join(BASE_DIR, clientPasswordCSV)
+CSV_FILE = os.path.join(BASE_DIR, 'registeredClient.csv')
+clientPassword_FILE = os.path.join(BASE_DIR, 'clientPasswords.csv')
 processingCSV_FILE = os.path.join(BASE_DIR, 'processingCommands.csv')
 userSubjects_FILE = os.path.join(BASE_DIR, 'userSubjects.csv')
 
@@ -743,17 +740,6 @@ def handleReceiveServertoServer(connection):
         print(f"Error receiving data from other server: {e}")
     finally:
         connection.close()
-
-# def listenServertoServer():
-#     global serverSock
-#     while not serverStopEvent.is_set():
-#         try:
-#             connection, server2_address = serverSock.accept()
-#         except socket.timeout:
-#             continue
-#         except OSError:
-#             break
-#         handleReceiveServertoServer(connection)
 
 # ================= End Server-to-Server Communication Functions =================
 

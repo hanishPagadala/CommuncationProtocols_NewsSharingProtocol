@@ -1,9 +1,6 @@
 import socket
-import sys
 import time
-import errno
 import threading
-import random
 import tkinter as tk
 from tkinter import scrolledtext, simpledialog, messagebox
 
@@ -11,10 +8,11 @@ from tkinter import scrolledtext, simpledialog, messagebox
 PORTNo = 9996
 
 #server configuration. serverAddress gets changed in prompt_server_ip() so the user can choose the IP of the server.
-serverAddress = "localhost" #'132.205.94.193'
+serverAddress = "localhost"
 serverTCPPort = 10000
 serverUDPPort = 20000
 
+#Client state variables
 Request = 0
 userName = ""
 password = ""
