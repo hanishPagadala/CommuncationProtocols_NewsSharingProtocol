@@ -108,7 +108,7 @@ def startUDP(port):
 
     udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udpSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    udpSock.bind((serverAddress, int(port)))
+    udpSock.bind(("", int(port)))
     udpSock.settimeout(1.0)
 
     udpThread = threading.Thread(target=udpListenerLoop, args=(udpSock,), daemon=True)
