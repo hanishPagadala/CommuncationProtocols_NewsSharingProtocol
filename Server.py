@@ -53,10 +53,10 @@ referedLast = False
 # Synchronize shared in-memory state and CSV persistence across threads.
 stateLock = threading.RLock()
 
-# Server Selection
+# Server Selection (default is 1, changed by user at startup configuration dialog)
 SERVER_SELECTION = 1
 HOST = socket.gethostbyname(socket.gethostname())
-otherHOST = 'localhost'
+otherHOST = 'localhost' #default value, changed by user at startup configuration dialog
 TCPPort = 10000
 UDPPort = 20000
 

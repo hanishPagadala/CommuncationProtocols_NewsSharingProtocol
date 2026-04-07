@@ -7,9 +7,10 @@ import random
 import tkinter as tk
 from tkinter import scrolledtext, simpledialog, messagebox
 
-#function for client selecting which server to send to? or too complicated
+#Client port configuration
 PORTNo = 9996
 
+#server configuration. serverAddress gets changed in prompt_server_ip() so the user can choose the IP of the server.
 serverAddress = "localhost" #'132.205.94.193'
 serverTCPPort = 10000
 serverUDPPort = 20000
@@ -21,7 +22,6 @@ registered = False
 refered = False
 clientIP = socket.gethostbyname(socket.gethostname())
 server_address = (serverAddress, serverTCPPort)
-#server_address = ('132.205.46.76', 10000)
 
 udpSock = None
 udpThread = None
@@ -63,7 +63,7 @@ def prompt_server_ip():
     server_address = (serverAddress, serverTCPPort)
     return True
 
-
+# ============ UDP Communication ============
 def udpListenerLoop(sock):
     while not udpStopEvent.is_set():
         try:
@@ -108,7 +108,7 @@ def startUDP(port):
 
     udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udpSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    udpSock.bind(("", int(port)))
+    udpSock.bind(("", int(port))) # empty string means OS chooses the IP address of the local machine
     udpSock.settimeout(1.0)
 
     udpThread = threading.Thread(target=udpListenerLoop, args=(udpSock,), daemon=True)
@@ -126,7 +126,9 @@ def sendUDPMessage(message):
         udpSock.sendto(message.encode(), (serverAddress, serverUDPPort))
     except OSError as e:
         print(f"UDP send failed: {e}")
+# ============ END UDP Communication ============
 
+# ============ TCP Communication ============
 def sendMessage(message):
     #TCP send and recieve, closes after each message
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -196,9 +198,9 @@ def sendMessage(message):
 
         sendMessage(newMessage)
         refered = False
+# ============ END TCP Communication ============
 
-
-# functions in the system
+# ============ UI Handlers ============
 def on_register():
     global userName, password, Request
     name = simpledialog.askstring("Input", "Enter your name:")
@@ -326,6 +328,8 @@ def setup_ui():
     
     root.mainloop()
     stopUDP() 
+
+# ============ END UI Handlers ============
 
 if __name__ == "__main__":
     setup_ui()
