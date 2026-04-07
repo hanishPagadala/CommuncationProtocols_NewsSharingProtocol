@@ -8,19 +8,11 @@ import tkinter as tk
 from tkinter import scrolledtext, simpledialog, messagebox
 
 #function for client selecting which server to send to? or too complicated
-randomInt = 1 #random.randint(1, 2)
-udpHOST = "0.0.0.0"
 PORTNo = 9996
 
 serverAddress = "localhost" #'132.205.94.193'
 serverTCPPort = 10000
-udpServerPort = 8888 
-
-# try:
-#     udpSock.bind((udpHOST, PORTNo))
-# except socket.error as msg:
-#     print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
-#     sys.exit()
+serverUDPPort = 20000
 
 Request = 0
 userName = ""
@@ -48,6 +40,28 @@ def gui_print(*args):
         root.after(0, lambda: log_widget.insert(tk.END, message + "\n"))
         root.after(0, lambda: log_widget.see(tk.END))
     real_print(message)
+
+
+def prompt_server_ip():
+    global serverAddress, server_address
+
+    selected_ip = simpledialog.askstring(
+        "Server Connection",
+        "Enter server IP/host to connect:",
+        parent=root,
+        initialvalue=serverAddress,
+    )
+
+    if selected_ip is None:
+        return False
+
+    selected_ip = selected_ip.strip()
+    if not selected_ip:
+        selected_ip = "localhost"
+
+    serverAddress = selected_ip
+    server_address = (serverAddress, serverTCPPort)
+    return True
 
 
 def udpListenerLoop(sock):
@@ -94,7 +108,7 @@ def startUDP(port):
 
     udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udpSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    udpSock.bind((udpHOST, int(port)))
+    udpSock.bind((serverAddress, int(port)))
     udpSock.settimeout(1.0)
 
     udpThread = threading.Thread(target=udpListenerLoop, args=(udpSock,), daemon=True)
@@ -102,14 +116,14 @@ def startUDP(port):
         
 
 def sendUDPMessage(message):
-    global udpSock, udpServerPort, serverAddress
+    global udpSock, serverUDPPort, serverAddress
     # Keep one UDP socket alive for both sending and receiving.
     if udpSock is None:
         print("UDP socket is not active")
         return
 
     try:
-        udpSock.sendto(message.encode(), (serverAddress, udpServerPort))
+        udpSock.sendto(message.encode(), (serverAddress, serverUDPPort))
     except OSError as e:
         print(f"UDP send failed: {e}")
 
@@ -117,7 +131,7 @@ def sendMessage(message):
     #TCP send and recieve, closes after each message
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     reply = ""
-    global server_address, serverAddress, serverTCPPort, udpServerPort, registered, refered, Request
+    global server_address, serverAddress, serverTCPPort, serverUDPPort, registered, refered, Request
 
     try:
         sock.connect(server_address)
@@ -158,7 +172,7 @@ def sendMessage(message):
                 registered = False
                 refered = True
                 Request = 0
-                udpServerPort = int(reply[4])
+                serverUDPPort = int(reply[4])
 
             if (len(reply) > 4) and(reply[3] == "ALREADY") and (reply[4] == "REGISTERED"):
                 print("Registration denied: You are already registered. Please update your information or unregister first.")
@@ -257,7 +271,7 @@ def update_status_label():
         )
     else:
         status_label.config(
-            text=f"Status: Unregistered\nUser: {"NA"}\nIP: {"NA"}\nUDP Port: {"NA"}",
+            text="Status: Unregistered\nUser: NA\nIP: NA\nUDP Port: NA",
             fg="red",
         )
     root.after(1000, update_status_label)
@@ -276,6 +290,10 @@ def setup_ui():
     root = tk.Tk()
     root.title("COEN 366 - Network Client")
     root.geometry("800x600")
+
+    if not prompt_server_ip():
+        root.destroy()
+        return
 
     
     frame_left = tk.Frame(root, width=200, bg="#f0f0f0")

@@ -6,7 +6,7 @@ import csv #hello
 import time
 import builtins
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import scrolledtext, simpledialog, messagebox
 
 # Arrays and Global Variables
 
@@ -21,7 +21,7 @@ udpSock = None
 udpThread = None
 udpStopEvent = threading.Event()
 clientSock = None
-serverSock = None
+serverSock = None # REMOVE THIS VARIABLE ONCE TESTED
 udpConnectionThread = None
 serverToServerThread = None
 serverMainThread = None
@@ -54,51 +54,60 @@ referedLast = False
 stateLock = threading.RLock()
 
 # Server Selection
+SERVER_SELECTION = 1
+HOST = socket.gethostbyname(socket.gethostname())
+otherHOST = 'localhost'
+TCPPort = 10000
+UDPPort = 20000
 
-SERVER_SELECTION = 1 # Choose between 0 or 1 for even and odd testing for refer
-if SERVER_SELECTION == 0:
-    HOST = 'localhost' #change to '0.0.0.0' when testing on lab computers or localhost for laptop testing
-    CLIENTPORT = 10000
-    SERVERPORT = 10003
-    UDPHOST = '0.0.0.0' 
-    UDPPORT = 8888
-    client_server_address = (HOST, CLIENTPORT)
-    server_server_address = (HOST, SERVERPORT)
-    otherHOST = 'localhost'
-    otherClientPORT = 10001
-    otherServerPORT = 10002
-    otherClientServerAddress = (otherHOST, otherClientPORT)
-    otherServerServerAddress = (otherHOST, otherServerPORT)
-    otherUDPHOST = '0.0.0.0'
-    otherUDPPORT = 8889
-    RegisteredClientsCSV = 'registeredClient.csv'
-    clientPasswordCSV = 'clientPasswords.csv'
-if SERVER_SELECTION == 1:
-    HOST = 'localhost' 
-    CLIENTPORT = 10001
-    SERVERPORT = 10002
-    client_server_address = (HOST, CLIENTPORT)
-    server_server_address = (HOST, SERVERPORT)
-    UDPHOST = '0.0.0.0'
-    UDPPORT = 8889
-    otherHOST = 'localhost'
-    otherClientPORT = 10000
-    otherServerPORT = 10003
-    otherClientServerAddress = (otherHOST, otherClientPORT)
-    otherServerServerAddress = (otherHOST, otherServerPORT)
-    otherUDPHOST = '0.0.0.0'
-    otherUDPPORT = 8888
-    RegisteredClientsCSV = 'registeredClient2.csv'
-    clientPasswordCSV = 'clientPasswords2.csv'
+RegisteredClientsCSV = 'registeredClient.csv'
+clientPasswordCSV = 'clientPasswords.csv'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_FILE = os.path.join(BASE_DIR, RegisteredClientsCSV)
+clientPassword_FILE = os.path.join(BASE_DIR, clientPasswordCSV)
+processingCSV_FILE = os.path.join(BASE_DIR, 'processingCommands.csv')
+userSubjects_FILE = os.path.join(BASE_DIR, 'userSubjects.csv')
+
+def apply_server_configuration(selection, other_server_host):
+    global SERVER_SELECTION, HOST, TCPPort, UDPPort, otherHOST
+
+    if selection not in (0, 1):
+        raise ValueError("Server selection must be 0 or 1")
+
+    SERVER_SELECTION = selection
+    otherHOST = str(other_server_host).strip() or 'localhost'
+
+def prompt_startup_configuration():
+    while True:
+        selection = simpledialog.askinteger(
+            "Server Setup",
+            "Select server instance (0 or 1):",
+            parent=root,
+            minvalue=0,
+            maxvalue=1,
+            initialvalue=SERVER_SELECTION
+        )
+        if selection is None:
+            return False
+
+        peer_host = simpledialog.askstring(
+            "Server Setup",
+            "Enter the other server IP/host:",
+            parent=root,
+            initialvalue=otherHOST
+        )
+        if peer_host is None:
+            return False
+
+        peer_host = peer_host.strip()
+        if not peer_host:
+            messagebox.showerror("Invalid Input", "Other server IP/host cannot be empty.")
+            continue
+
+        apply_server_configuration(selection, peer_host)
+        return True
 
 # Networking sockets are created when the UI starts the server.
-
-# CSV File Paths
-
-CSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), RegisteredClientsCSV)
-clientPassword_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), clientPasswordCSV)
-processingCSV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processingCommands.csv')
-userSubjects_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'userSubjects.csv')
 
 # ================= General Helper Functions =================
 
@@ -291,7 +300,7 @@ def TCPRegister(request):
                                         handleSendServertoServer("UPDATE-PASSWORD "  +  client_name + " " + client_Pass, waitForAck=False)
                                         writeToPasswordCSV()   
                     else:
-                        message = "REFER " + request_id + " " + otherHOST + " " + str(otherClientPORT) + " " + str(otherUDPPORT)
+                        message = "REFER " + request_id + " " + otherHOST + " " + str(TCPPort) + " " + str(UDPPort)
                         
     return message
 
@@ -663,7 +672,7 @@ def getUDPDataFromClient():
 def handleSendServertoServer (message, waitForAck : bool):
     # UDP-based server-to-server communication using the existing udpSock.
     global udpSock
-    otherServerUDPAddress = (otherHOST, otherUDPPORT)
+    otherServerUDPAddress = (otherHOST, UDPPort)
     try:
         if waitForAck:
             parts = message.split()
@@ -735,16 +744,16 @@ def handleReceiveServertoServer(connection):
     finally:
         connection.close()
 
-def listenServertoServer():
-    global serverSock
-    while not serverStopEvent.is_set():
-        try:
-            connection, server2_address = serverSock.accept()
-        except socket.timeout:
-            continue
-        except OSError:
-            break
-        handleReceiveServertoServer(connection)
+# def listenServertoServer():
+#     global serverSock
+#     while not serverStopEvent.is_set():
+#         try:
+#             connection, server2_address = serverSock.accept()
+#         except socket.timeout:
+#             continue
+#         except OSError:
+#             break
+#         handleReceiveServertoServer(connection)
 
 # ================= End Server-to-Server Communication Functions =================
 
@@ -775,11 +784,15 @@ def close_socket(sock):
 
 
 def start_server():
-    global clientSock, serverSock, udpSock
+    global clientSock, udpSock
     global udpConnectionThread, serverToServerThread, serverMainThread
     global serverRunning
 
     if serverRunning:
+        return
+
+    if not prompt_startup_configuration():
+        print("Server start cancelled: setup was not completed.")
         return
 
     serverStopEvent.clear()
@@ -787,22 +800,17 @@ def start_server():
     try:
         udpSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udpSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        udpSock.bind((UDPHOST, UDPPORT))
+        udpSock.bind((HOST, UDPPort))
         udpSock.settimeout(1.0)
 
         clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         clientSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        serverSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        clientSock.bind(client_server_address)
-        serverSock.bind(server_server_address)
+        clientSock.bind((HOST, TCPPort))
 
         clientSock.listen(5)
-        serverSock.listen(1)
         clientSock.settimeout(1.0)
-        serverSock.settimeout(1.0)
 
         if not RegisteredClients and not clientSubjects and not clientPasswords and not processingCommands:
             readCSVInit()
@@ -810,34 +818,32 @@ def start_server():
         udpConnectionThread = threading.Thread(target=getUDPDataFromClient, daemon=True)
         udpConnectionThread.start()
 
-        serverToServerThread = threading.Thread(target=listenServertoServer, daemon=True)
-        serverToServerThread.start()
+        # serverToServerThread = threading.Thread(target=listenServertoServer, daemon=True)
+        # serverToServerThread.start()
 
         serverMainThread = threading.Thread(target=serverAcceptLoop, daemon=True)
         serverMainThread.start()
 
         serverRunning = True
-        print(f"Server started. TCP client port={CLIENTPORT}, TCP s2s port={SERVERPORT}, UDP port={UDPPORT}")
+        print(f"Server started. TCP client port={TCPPort}, TCP s2s port={UDPPort}, UDP port={UDPPort}")
     except Exception as e:
         print(f"Server start failed: {e}")
         stop_server()
 
 
 def stop_server():
-    global clientSock, serverSock, udpSock
+    global clientSock, udpSock
     global serverRunning
 
-    if not serverRunning and clientSock is None and serverSock is None and udpSock is None:
+    if not serverRunning and clientSock is None and udpSock is None:
         return
 
     serverStopEvent.set()
 
     close_socket(clientSock)
-    close_socket(serverSock)
     close_socket(udpSock)
 
     clientSock = None
-    serverSock = None
     udpSock = None
     serverRunning = False
     print("Server stopped.")
@@ -855,10 +861,12 @@ def refresh_state_view():
 
     status_text = (
         f"Status: {'RUNNING' if serverRunning else 'STOPPED'}\n"
+        f"Host IP: {HOST}\n"
         f"Server selection: {SERVER_SELECTION}\n"
-        f"Client TCP port: {CLIENTPORT}\n"
-        f"Server TCP port: {SERVERPORT}\n"
-        f"UDP port: {UDPPORT}\n"
+        f"Other server host: {otherHOST}\n"
+        f"Client TCP port: {TCPPort}\n"
+        f"Server TCP port: {UDPPort}\n"
+        f"UDP port: {UDPPort}\n"
         f"Registered clients: {len(registered_snapshot)}\n"
         f"Subjects entries: {len(subjects_snapshot)}\n"
         f"Tracked publications: {len(publications_snapshot)}\n"
